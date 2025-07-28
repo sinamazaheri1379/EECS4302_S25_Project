@@ -1,0 +1,53 @@
+class Animal {
+    protected string name;
+    private int age;
+    
+    public Animal(string n, int a) {
+        this.name = n;
+        this.age = a;
+    }
+    
+    public string getName() {
+        return name;
+    }
+    
+    public int getAge() {
+        return age;
+    }
+    
+    public void makeSound() {
+        print("Some generic animal sound");
+    }
+}
+
+class Dog extends Animal {
+    private string breed;
+    
+    public Dog(string n, int a, string b) {
+        super(n, a);
+        this.breed = b;
+    }
+    
+    public void makeSound() {
+        print("Woof! My name is " + name);
+    }
+    
+    public string getBreed() {
+        return breed;
+    }
+}
+
+int main() {
+    Animal myPet = new Dog("Buddy", 5, "Golden Retriever");
+    
+    // Polymorphism
+    myPet.makeSound();
+    
+    // Type checking with instanceof
+    if (myPet instanceof Dog) {
+        Dog myDog = (Dog) myPet;
+        print("Breed: " + myDog.getBreed());
+    }
+    
+    return 0;
+}

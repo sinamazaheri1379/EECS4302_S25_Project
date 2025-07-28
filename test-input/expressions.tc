@@ -1,0 +1,61 @@
+class MathUtils {
+    public static int max(int a, int b) {
+        return a > b ? a : b;
+    }
+    
+    public static int min(int a, int b) {
+        return a < b ? a : b;
+    }
+    
+    public static int abs(int n) {
+        return n < 0 ? -n : n;
+    }
+    
+    public static float power(float base, int exp) {
+        if (exp == 0) return 1.0;
+        
+        float result = 1.0;
+        int absExp = abs(exp);
+        
+        for (int i = 0; i < absExp; i++) {
+            result *= base;
+        }
+        
+        return exp < 0 ? 1.0 / result : result;
+    }
+}
+
+int main() {
+    int a = 10;
+    int b = 20;
+    int c = -15;
+    
+    // Compound expressions
+    int result1 = MathUtils.max(a, b) + MathUtils.min(a, c);
+    
+    // Pre/post increment
+    int x = 5;
+    int y = ++x;  // x = 6, y = 6
+    int z = x++;  // x = 7, z = 6
+    
+    // Complex boolean expressions
+    boolean complex = (a > 0 && b > 0) || (c < 0 && MathUtils.abs(c) > 10);
+    
+    // Nested ternary
+    string category = a > 100 ? "large" : (a > 50 ? "medium" : "small");
+    
+    // Compound assignment
+    float sum = 0.0;
+    sum += MathUtils.power(2.0, 3);
+    sum *= 1.5;
+    sum -= 2.0;
+    sum /= 2.0;
+    
+    // Array expressions
+    int[] arr = new int[MathUtils.max(a, b)];
+    arr[0] = a;
+    arr[1] = b;
+    arr[a % 5] += c;
+    
+    return 0;
+}

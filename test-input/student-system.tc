@@ -1,0 +1,135 @@
+class Student {
+    private string id;
+    private string name;
+    private int[] grades;
+    private int gradeCount;
+    
+    public Student(string id, string name) {
+        this.id = id;
+        this.name = name;
+        this.grades = new int[10];
+        this.gradeCount = 0;
+    }
+    
+    public void addGrade(int grade) {
+        if (gradeCount < grades.length && grade >= 0 && grade <= 100) {
+            grades[gradeCount++] = grade;
+        }
+    }
+    
+    public float getAverage() {
+        if (gradeCount == 0) return 0.0;
+        
+        int sum = 0;
+        for (int i = 0; i < gradeCount; i++) {
+            sum += grades[i];
+        }
+        
+        return (float) sum / gradeCount;
+    }
+    
+    public char getLetterGrade() {
+        float avg = getAverage();
+        
+        if (avg >= 90) return 'A';
+        if (avg >= 80) return 'B';
+        if (avg >= 70) return 'C';
+        if (avg >= 60) return 'D';
+        return 'F';
+    }
+    
+    public string toString() {
+        return "Student: " + name + " (ID: " + id + "), Average: " + 
+               getAverage() + ", Grade: " + getLetterGrade();
+    }
+}
+
+class Course {
+    private string courseCode;
+    private string courseName;
+    private Student[] students;
+    private int studentCount;
+    private static int totalCourses = 0;
+    
+    public Course(string code, string name, int maxStudents) {
+        this.courseCode = code;
+        this.courseName = name;
+        this.students = new Student[maxStudents];
+        this.studentCount = 0;
+        totalCourses++;
+    }
+    
+    public boolean enrollStudent(Student student) {
+        if (studentCount < students.length) {
+            students[studentCount++] = student;
+            return true;
+        }
+        return false;
+    }
+    
+    public void assignGrade(string studentId, int grade) {
+        for (int i = 0; i < studentCount; i++) {
+            if (students[i].id == studentId) {
+                students[i].addGrade(grade);
+                break;
+            }
+        }
+    }
+    
+    public float getClassAverage() {
+        if (studentCount == 0) return 0.0;
+        
+        float sum = 0.0;
+        for (int i = 0; i < studentCount; i++) {
+            sum += students[i].getAverage();
+        }
+        
+        return sum / studentCount;
+    }
+    
+    public void printReport() {
+        print("Course Report: " + courseCode + " - " + courseName);
+        print("Number of students: " + studentCount);
+        print("Class average: " + getClassAverage());
+        print("\nStudent Details:");
+        
+        for (int i = 0; i < studentCount; i++) {
+            print(students[i].toString());
+        }
+    }
+}
+
+int main() {
+    // Create students
+    Student s1 = new Student("S001", "Alice Johnson");
+    Student s2 = new Student("S002", "Bob Smith");
+    Student s3 = new Student("S003", "Charlie Brown");
+    
+    // Create course
+    Course cs101 = new Course("CS101", "Introduction to Programming", 30);
+    
+    // Enroll students
+    cs101.enrollStudent(s1);
+    cs101.enrollStudent(s2);
+    cs101.enrollStudent(s3);
+    
+    // Assign grades
+    s1.addGrade(95);
+    s1.addGrade(88);
+    s1.addGrade(92);
+    
+    s2.addGrade(78);
+    s2.addGrade(85);
+    s2.addGrade(82);
+    
+    s3.addGrade(91);
+    s3.addGrade(94);
+    s3.addGrade(89);
+    
+    // Print report
+    cs101.printReport();
+    
+    print("\nTotal courses created: " + Course.totalCourses);
+    
+    return 0;
+}

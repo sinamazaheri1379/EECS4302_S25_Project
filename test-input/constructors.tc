@@ -1,0 +1,45 @@
+class Person {
+    protected string name;
+    protected int age;
+    
+    public Person() {
+        this("Unknown", 0);
+    }
+    
+    public Person(string name) {
+        this(name, 0);
+    }
+    
+    public Person(string name, int age) {
+        this.name = name;
+        this.age = age;
+    }
+}
+
+class Employee extends Person {
+    private string employeeId;
+    private float salary;
+    
+    public Employee(string name, int age, string id, float salary) {
+        super(name, age);
+        this.employeeId = id;
+        this.salary = salary;
+    }
+    
+    public Employee(string id) {
+        super();  // Calls Person()
+        this.employeeId = id;
+        this.salary = 0.0;
+    }
+}
+
+int main() {
+    Person p1 = new Person();
+    Person p2 = new Person("Alice");
+    Person p3 = new Person("Bob", 30);
+    
+    Employee e1 = new Employee("Charlie", 25, "E001", 50000.0);
+    Employee e2 = new Employee("E002");
+    
+    return 0;
+}
