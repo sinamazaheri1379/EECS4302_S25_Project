@@ -10,7 +10,7 @@ public class TypeCompatibility {
      * Check if source type can be assigned to target type.
      * This includes exact matches, type promotion, and inheritance.
      */
-    public static boolean isAssignable(Type source, Type target) {
+    public static boolean isAssignmentCompatible(Type target, Type source) {
         // Exact match
         if (source.equals(target)) {
             return true;
@@ -38,10 +38,93 @@ public class TypeCompatibility {
         
         // Array type compatibility
         if (source instanceof ArrayType && target instanceof ArrayType) {
-            return isAssignable(
-                ((ArrayType) source).getElementType(),
-                ((ArrayType) target).getElementType()
-            );
+            ArrayType sourceArray = (ArrayType) source;
+            ArrayType targetArray = (ArrayType) target;
+            return isAssignmentCompatible(targetArray.getElementType(), sourceArray.getElementType());
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Older method name for backward compatibility
+     */
+    public static boolean isAssignable(Type source, Type target) {
+        return isAssignmentCompatible(target, source);
+    }
+    
+    /**
+     * Check if a primitive type can be promoted to another.
+     * Implements numeric promotion rules.
+     */
+    public static boolean canPromote(PrimitiveType from, PrimitiveType to) {
+        // Same type - no promotion needed
+        if (from == to) {
+            return true;
+        }
+        
+        // char -> int -> float
+        if (from == PrimitiveType.CHAR) {
+            return to == PrimitiveType.INT || to == PrimitiveType.FLOAT;
+        }
+        if (from == PrimitiveType.INT) {
+            return to == PrimitiveType.FLOAT;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check if a type can be cast to another type.
+     * More permissive than assignment compatibility.
+     */
+    public static boolean canCast(Type from, Type to) {
+        // Same type
+        if (from.equals(to)) {
+            return true;
+        }
+        
+        // Error type
+        if (from instanceof ErrorType || to instanceof ErrorType) {
+            return true;
+        }
+        
+        // Primitive type casts
+        if (from instanceof PrimitiveType && to instanceof PrimitiveType) {
+            PrimitiveType fromPrim = (PrimitiveType) from;
+            PrimitiveType toPrim = (PrimitiveType) to;
+            
+            // All numeric types can be cast to each other
+            if (isNumeric(fromPrim) && isNumeric(toPrim)) {
+                return true;
+            }
+            
+            // No cast between boolean and other types
+            return false;
+        }
+        
+        // Reference type casts
+        if (isReferenceType(from) && isReferenceType(to)) {
+            // Null can be cast to any reference type
+            if (from instanceof NullType) {
+                return true;
+            }
+            
+            // Class hierarchy casts
+            if (from instanceof ClassType && to instanceof ClassType) {
+                ClassType fromClass = (ClassType) from;
+                ClassType toClass = (ClassType) to;
+                
+                // Up-cast or down-cast in the same hierarchy
+                return fromClass.isAssignableTo(toClass) || toClass.isAssignableTo(fromClass);
+            }
+            
+            // Array casts - only if element types are compatible
+            if (from instanceof ArrayType && to instanceof ArrayType) {
+                ArrayType fromArray = (ArrayType) from;
+                ArrayType toArray = (ArrayType) to;
+                return canCast(fromArray.getElementType(), toArray.getElementType());
+            }
         }
         
         return false;
@@ -78,21 +161,6 @@ public class TypeCompatibility {
         
         // No promotion possible
         return null;
-    }
-    
-    /**
-     * Check if a primitive type can be promoted to another.
-     */
-    private static boolean canPromote(PrimitiveType from, PrimitiveType to) {
-        // char -> int -> float
-        if (from == PrimitiveType.CHAR) {
-            return to == PrimitiveType.INT || to == PrimitiveType.FLOAT;
-        }
-        if (from == PrimitiveType.INT) {
-            return to == PrimitiveType.FLOAT;
-        }
-        
-        return false;
     }
     
     /**

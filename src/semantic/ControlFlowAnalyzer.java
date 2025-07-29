@@ -79,30 +79,36 @@ public class ControlFlowAnalyzer {
     private static StatementAnalysis analyzeStatement(StatementContext stmt) {
         StatementAnalysis analysis = new StatementAnalysis();
         
-        if (stmt.returnStmt() != null) {
+        // Check the type of statement by checking its actual class
+        if (stmt instanceof ReturnStmtContext) {
             analysis.alwaysReturns = true;
             analysis.hasReturn = true;
         }
-        else if (stmt.blockStmt() != null && stmt.blockStmt().block() != null) {
-            BlockAnalysis blockAnalysis = analyzeBlock(stmt.blockStmt().block());
-            analysis.alwaysReturns = blockAnalysis.allPathsReturn;
-            analysis.hasReturn = blockAnalysis.hasReturn;
+        else if (stmt instanceof BlockStmtContext) {
+            BlockStmtContext blockStmt = (BlockStmtContext) stmt;
+            if (blockStmt.block() != null) {
+                BlockAnalysis blockAnalysis = analyzeBlock(blockStmt.block());
+                analysis.alwaysReturns = blockAnalysis.allPathsReturn;
+                analysis.hasReturn = blockAnalysis.hasReturn;
+            }
         }
-        else if (stmt.ifStmt() != null) {
-            analysis = analyzeIfStatement(stmt.ifStmt());
+        else if (stmt instanceof IfStmtContext) {
+            analysis = analyzeIfStatement((IfStmtContext) stmt);
         }
-        else if (stmt.switchStmt() != null) {
-            analysis = analyzeSwitchStatement(stmt.switchStmt());
+        else if (stmt instanceof SwitchStmtContext) {
+            analysis = analyzeSwitchStatement((SwitchStmtContext) stmt);
         }
-        else if (stmt.whileStmt() != null || stmt.forStmt() != null || stmt.forEachStmt() != null) {
+        else if (stmt instanceof WhileStmtContext || 
+                 stmt instanceof ForStmtContext || 
+                 stmt instanceof ForEachStmtContext) {
             // Loops don't guarantee return unless they're infinite
             analysis.hasReturn = false;
             analysis.alwaysReturns = false;
         }
-        else if (stmt.breakStmt() != null) {
+        else if (stmt instanceof BreakStmtContext) {
             analysis.breaksOut = true;
         }
-        else if (stmt.continueStmt() != null) {
+        else if (stmt instanceof ContinueStmtContext) {
             analysis.continuesOut = true;
         }
         
@@ -115,7 +121,7 @@ public class ControlFlowAnalyzer {
         // Analyze then branch
         StatementAnalysis thenAnalysis = analyzeStatement(ifStmt.statement(0));
         
-        if (ifStmt.ELSE() != null) {
+        if (ifStmt.ELSE() != null && ifStmt.statement(1) != null) {
             // Analyze else branch
             StatementAnalysis elseAnalysis = analyzeStatement(ifStmt.statement(1));
             
@@ -141,10 +147,8 @@ public class ControlFlowAnalyzer {
             boolean caseBreaks = false;
             
             // Check if this is default case
-            for (SwitchLabelContext label : switchCase.switchLabel()) {
-                if (label.DEFAULT() != null) {
-                    hasDefault = true;
-                }
+            if (switchCase.DEFAULT() != null) {
+                hasDefault = true;
             }
             
             // Analyze statements in case
@@ -222,21 +226,22 @@ public class ControlFlowAnalyzer {
             InitializationAnalysis analysis) {
         
         // Handle local variable declarations with initializers
-        if (stmt.localVarDeclStmt() != null) {
-            LocalVarDeclContext varDecl = stmt.localVarDeclStmt().localVarDecl();
+        if (stmt instanceof LocalVarDeclStmtContext) {
+            LocalVarDeclStmtContext varDeclStmt = (LocalVarDeclStmtContext) stmt;
+            LocalVarDeclContext varDecl = varDeclStmt.localVarDecl();
             // This would need access to symbol table to get the variable symbols
             // For now, this is a placeholder
         }
         
         // Handle assignments
-        if (stmt.assignStmt() != null) {
+        if (stmt instanceof AssignStmtContext) {
             // This would need to resolve the lvalue to a variable symbol
             // For now, this is a placeholder
         }
         
         // Handle control flow
-        if (stmt.ifStmt() != null) {
-            handleIfStatementInit(stmt.ifStmt(), initialized, analysis);
+        if (stmt instanceof IfStmtContext) {
+            handleIfStatementInit((IfStmtContext) stmt, initialized, analysis);
         }
     }
     
@@ -250,12 +255,22 @@ public class ControlFlowAnalyzer {
         Set<VariableSymbol> elseInit = new HashSet<>(initialized);
         
         // Analyze branches
-        if (ifStmt.statement(0).blockStmt() != null) {
-            analyzeBlockInit(ifStmt.statement(0).blockStmt().block(), thenInit, analysis);
+        StatementContext thenStmt = ifStmt.statement(0);
+        if (thenStmt instanceof BlockStmtContext) {
+            BlockStmtContext blockStmt = (BlockStmtContext) thenStmt;
+            if (blockStmt.block() != null) {
+                analyzeBlockInit(blockStmt.block(), thenInit, analysis);
+            }
         }
         
-        if (ifStmt.ELSE() != null && ifStmt.statement(1).blockStmt() != null) {
-            analyzeBlockInit(ifStmt.statement(1).blockStmt().block(), elseInit, analysis);
+        if (ifStmt.ELSE() != null && ifStmt.statement(1) != null) {
+            StatementContext elseStmt = ifStmt.statement(1);
+            if (elseStmt instanceof BlockStmtContext) {
+                BlockStmtContext blockStmt = (BlockStmtContext) elseStmt;
+                if (blockStmt.block() != null) {
+                    analyzeBlockInit(blockStmt.block(), elseInit, analysis);
+                }
+            }
         }
         
         // Variables are definitely initialized only if initialized in both branches

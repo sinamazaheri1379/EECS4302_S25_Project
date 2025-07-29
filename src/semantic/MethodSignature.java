@@ -64,7 +64,7 @@ public class MethodSignature {
         }
         
         for (int i = 0; i < parameterTypes.size(); i++) {
-            if (!TypeCompatibility.isAssignable(argTypes.get(i), parameterTypes.get(i))) {
+            if (!TypeCompatibility.isAssignmentCompatible(parameterTypes.get(i), argTypes.get(i))) {
                 return false;
             }
         }
@@ -92,7 +92,8 @@ public class MethodSignature {
             } else if (argType instanceof NullType) {
                 // Null to reference type
                 score += 3;
-            } else if (TypeCompatibility.canPromote(argType, paramType)) {
+            } else if (argType instanceof PrimitiveType && paramType instanceof PrimitiveType &&
+                       TypeCompatibility.canPromote((PrimitiveType) argType, (PrimitiveType) paramType)) {
                 // Type promotion
                 score += 2;
             } else {
@@ -132,11 +133,9 @@ public class MethodSignature {
     
     /**
      * Find the best matching method from a list of overloaded methods.
+     * Uses specificity scoring to determine the most specific match.
      */
-    public static FunctionSymbol findBestMatch(
-            List<FunctionSymbol> methods,
-            List<Type> argTypes) {
-        
+    public static FunctionSymbol findBestMatch(List<FunctionSymbol> methods, List<Type> argTypes) {
         FunctionSymbol bestMatch = null;
         int bestScore = Integer.MAX_VALUE;
         
@@ -147,9 +146,6 @@ public class MethodSignature {
             if (score < bestScore) {
                 bestScore = score;
                 bestMatch = method;
-            } else if (score == bestScore && bestMatch != null) {
-                // Ambiguous - would need more sophisticated resolution
-                // For now, keep first match
             }
         }
         
