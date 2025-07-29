@@ -29,6 +29,7 @@ classMember
 visibility
     : PUBLIC
     | PRIVATE
+    | PROTECTED    // Add PROTECTED support
     ;
 
 constructorDecl
@@ -37,7 +38,7 @@ constructorDecl
 
 // Global variables
 globalVarDecl
-    : STATIC? FINAL? varDecl     // Added FINAL for consistency
+    : STATIC? FINAL? varDecl
     ;
 
 // Variable declarations with multiple declarators
@@ -96,40 +97,98 @@ block
     ;
 
 statement
-    : localVarDecl                                     # localVarDeclStmt
-    | lvalue '=' expr ';'                              # assignStmt
-    | lvalue op=(ADD_ASSIGN | SUB_ASSIGN | MUL_ASSIGN 
-               | DIV_ASSIGN | MOD_ASSIGN) expr ';'     # compoundAssignStmt
-    | expr ';'                                         # exprStmt
-    | IF '(' expr ')' statement 
-      (ELSE statement)?                                # ifStmt
-    | WHILE '(' expr ')' statement                     # whileStmt
-    | FOR '(' forInit? ';' expr? ';' forUpdate? ')' 
-      statement                                        # forStmt
-    | FOR '(' FINAL? type ID ':' expr ')' statement   # forEachStmt
-    | DO statement WHILE '(' expr ')' ';'              # doWhileStmt
-    | SWITCH '(' expr ')' '{' switchCase* '}'          # switchStmt
-    | RETURN expr? ';'                                 # returnStmt
-    | BREAK ';'                                        # breakStmt
-    | CONTINUE ';'                                     # continueStmt
-    | block                                            # blockStmt
-    | PRINT '(' expr ')' ';'                           # printStmt
-    | ';'                                              # emptyStmt
+    : localVarDeclStmt
+    | assignStmt
+    | compoundAssignStmt
+    | exprStmt
+    | ifStmt
+    | whileStmt
+    | forStmt
+    | forEachStmt
+    | doWhileStmt
+    | switchStmt
+    | returnStmt
+    | breakStmt
+    | continueStmt
+    | blockStmt
+    | emptyStmt
     ;
 
-localVarDecl
-    : FINAL? type varDeclarator (',' varDeclarator)* ';'
+localVarDeclStmt : localVarDecl ;
+
+localVarDecl : FINAL? varDecl ;
+
+assignStmt
+    : lvalue '=' expr ';'
+    ;
+
+compoundAssignStmt
+    : lvalue op=(ADD_ASSIGN | SUB_ASSIGN | MUL_ASSIGN 
+               | DIV_ASSIGN | MOD_ASSIGN) expr ';'
+    ;
+
+exprStmt
+    : expr ';'
+    ;
+
+ifStmt
+    : IF '(' expr ')' statement 
+      (ELSE statement)?
+    ;
+
+whileStmt
+    : WHILE '(' expr ')' statement
+    ;
+
+forStmt
+    : FOR '(' forInit? ';' expr? ';' forUpdate? ')' statement
+    ;
+
+forEachStmt
+    : FOR '(' FINAL? type ID ':' expr ')' statement
+    ;
+
+doWhileStmt
+    : DO statement WHILE '(' expr ')' ';'
+    ;
+
+switchStmt
+    : SWITCH '(' expr ')' '{' switchCase* '}'
+    ;
+
+returnStmt
+    : RETURN expr? ';'
+    ;
+
+breakStmt
+    : BREAK ';'
+    ;
+
+continueStmt
+    : CONTINUE ';'
+    ;
+
+blockStmt
+    : block
+    ;
+
+printStmt
+    : PRINT '(' expr ')' ';'
+    ;
+
+emptyStmt
+    : ';'
     ;
 
 lvalue
-    : ID                                               # varLvalue
-    | lvalue '[' expr ']'                              # arrayElementLvalue
-    | lvalue '.' ID                                    # fieldLvalue
+    : ID                        # VarLvalue
+    | lvalue '.' ID            # FieldLvalue  
+    | lvalue '[' expr ']'      # ArrayLvalue
     ;
-
+    
 forInit
-    : localVarDecl
-    | exprList
+    : FINAL? type varDeclarator (',' varDeclarator)*  // Local var declaration
+    | exprList                                         // Expression list
     ;
 
 forUpdate
@@ -152,44 +211,42 @@ switchLabel
 
 // Expressions with proper precedence
 expr
-    : primary                                          # primaryExpr
-    | expr '.' ID                                      # fieldAccess
-    | expr '.' ID '(' argList? ')'                    # methodCall
-    | expr '[' expr ']'                                # arrayAccess
-    | NEW primitiveType ('[' expr ']')+ ('[' ']')*    # newPrimitiveArray
-    | NEW classType ('[' expr ']')+ ('[' ']')*        # newObjectArray
-    | NEW primitiveType '[' ']' arrayInitializer      # newPrimitiveArrayInit
-    | NEW classType '[' ']' arrayInitializer          # newObjectArrayInit
-    | NEW classType '(' argList? ')'                   # newObject
-    | '(' type ')' expr                                # castExpr
-    | expr INSTANCEOF classType                        # instanceOfExpr
-    | expr op=(INC | DEC)                             # postIncDec
-    | op=('+' | '-' | '!' | INC | DEC) expr           # unaryExpr
-    | expr op=('*' | '/' | '%') expr                  # mulDivMod
-    | expr op=('+' | '-') expr                         # addSub
-    | expr op=('<' | '>' | '<=' | '>=') expr          # relational
-    | expr op=('==' | '!=') expr                      # equality
-    | expr '&&' expr                                   # and
-    | expr '||' expr                                   # or
-    | <assoc=right> expr '?' expr ':' expr            # ternary
-    | '(' expr ')'                                     # paren
+    : primary                                          # PrimaryExpr
+    | THIS                                             # ThisExpr      
+    | SUPER                                            # SuperExpr     
+    | expr '.' ID                                      # FieldAccess
+    | expr '.' ID '(' argList? ')'                    # MethodCall
+    | expr '[' expr ']'                                # ArrayAccess
+    | NEW type '[' expr ']' ('[' ']')*                                    # NewArrayExpr
+    | NEW type arrayInitializer                        # NewArrayWithInit
+    | NEW classType '(' argList? ')'                   # NewExpr
+    | '(' type ')' expr                                # CastExpr
+    | expr INSTANCEOF classType                        # InstanceOfExpr
+    | expr op=(INC | DEC)                              # PostIncDec
+    | op=('+' | '-' | '!' | INC | DEC) expr           # UnaryExpr
+    | expr op=('*' | '/' | '%') expr                   # BinaryExpr
+    | expr op=('+' | '-') expr                         # BinaryExpr
+    | expr op=('<' | '>' | '<=' | '>=') expr          # BinaryExpr
+    | expr op=('==' | '!=') expr                       # BinaryExpr
+    | expr '&&' expr                                   # And
+    | expr '||' expr                                   # Or
+    | <assoc=right> expr '?' expr ':' expr            # Ternary
+    | '(' expr ')'                                     # ParenExpr
     ;
 
 primary
-    : literal                                          # literalPrimary
-    | ID                                               # varRef
-    | ID '(' argList? ')'                              # funcCall
-    | THIS                                             # thisRef
-    | SUPER                                            # superRef
+    : literal                                          # LiteralPrimary
+    | ID                                               # VarRef
+    | ID '(' argList? ')'                              # FuncCall
     ;
 
 literal
-    : INT_LITERAL                                      # intLiteral
-    | FLOAT_LITERAL                                    # floatLiteral
-    | CHAR_LITERAL                                     # charLiteral
-    | STRING_LITERAL                                   # stringLiteral
-    | boolLiteral                                      # booleanLiteral
-    | NULL                                             # nullLiteral
+    : INT_LITERAL                                      # IntLiteral
+    | FLOAT_LITERAL                                    # FloatLiteral
+    | CHAR_LITERAL                                     # CharLiteral
+    | STRING_LITERAL                                   # StringLiteral
+    | boolLiteral      								   # BooleanLiteral
+    | NULL                                             # NullLiteral
     ;
 
 boolLiteral
@@ -201,83 +258,67 @@ argList
     : expr (',' expr)*
     ;
 
+
 // ===== LEXER RULES =====
 
-// Keywords (order matters - keywords before ID)
-CLASS      : 'class' ;
-EXTENDS    : 'extends' ;
-PUBLIC     : 'public' ;
-PRIVATE    : 'private' ;
-STATIC     : 'static' ;
-FINAL      : 'final' ;
-VOID       : 'void' ;
-IF         : 'if' ;
-ELSE       : 'else' ;
-WHILE      : 'while' ;
-FOR        : 'for' ;
-DO         : 'do' ;
-SWITCH     : 'switch' ;
-CASE       : 'case' ;
-DEFAULT    : 'default' ;
-BREAK      : 'break' ;
-CONTINUE   : 'continue' ;
-RETURN     : 'return' ;
-NEW        : 'new' ;
-THIS       : 'this' ;
-SUPER      : 'super' ;
+// Keywords
+CLASS : 'class' ;
+EXTENDS : 'extends' ;
+IMPORT : 'import' ;
+PUBLIC : 'public' ;
+PRIVATE : 'private' ;
+PROTECTED : 'protected' ;
+STATIC : 'static' ;
+FINAL : 'final' ;
+VOID : 'void' ;
+IF : 'if' ;
+ELSE : 'else' ;
+WHILE : 'while' ;
+FOR : 'for' ;
+DO : 'do' ;
+SWITCH : 'switch' ;
+CASE : 'case' ;
+DEFAULT : 'default' ;
+BREAK : 'break' ;
+CONTINUE : 'continue' ;
+RETURN : 'return' ;
+NEW : 'new' ;
+THIS : 'this' ;
+SUPER : 'super' ;
+NULL : 'null' ;
+TRUE : 'true' ;
+FALSE : 'false' ;
+PRINT : 'print' ;
 INSTANCEOF : 'instanceof' ;
-IMPORT     : 'import' ;
-NULL       : 'null' ;
-TRUE       : 'true' ;
-FALSE      : 'false' ;
-PRINT      : 'print' ;
 
-// Primitive types
-INT        : 'int' ;
-FLOAT      : 'float' ;
-STRING     : 'string' ;
-BOOLEAN    : 'boolean' ;
-CHAR       : 'char' ;
+// Types
+INT : 'int' ;
+FLOAT : 'float' ;
+STRING : 'string' ;
+BOOLEAN : 'boolean' ;
+CHAR : 'char' ;
 
 // Operators
-INC        : '++' ;
-DEC        : '--' ;
+INC : '++' ;
+DEC : '--' ;
 ADD_ASSIGN : '+=' ;
 SUB_ASSIGN : '-=' ;
 MUL_ASSIGN : '*=' ;
 DIV_ASSIGN : '/=' ;
 MOD_ASSIGN : '%=' ;
 
-// Identifiers (must come after keywords)
-ID         : [a-zA-Z_][a-zA-Z0-9_]* ;
+// Identifiers and literals
+ID : [a-zA-Z_][a-zA-Z0-9_]* ;
+INT_LITERAL : [0-9]+ ;
+FLOAT_LITERAL : [0-9]+ '.' [0-9]+ ;
+CHAR_LITERAL : '\'' . '\'' ;
+STRING_LITERAL : '"' (~["\r\n])* '"' ;
 
-// Literals
-INT_LITERAL    : '0'
-               | [1-9][0-9]*
-               | '0x' [0-9a-fA-F]+
-               | '0b' [01]+
-               ;
-
-FLOAT_LITERAL  : [0-9]+ '.' [0-9]* ([eE] [+-]? [0-9]+)?
-               | '.' [0-9]+ ([eE] [+-]? [0-9]+)?
-               | [0-9]+ [eE] [+-]? [0-9]+
-               ;
-
-CHAR_LITERAL   : '\'' (~['\\\r\n] | EscapeSeq) '\'' ;
-
-STRING_LITERAL : '"' (~["\\\r\n] | EscapeSeq)* '"' ;
-
-// Escape sequences
-fragment
-EscapeSeq  : '\\' [btnfr"'\\]                    // Basic escapes
-           | '\\' [0-3]? [0-7]? [0-7]            // Octal escape
-           | '\\' 'u' HexDigit HexDigit HexDigit HexDigit  // Unicode escape
-           ;
-
-fragment
-HexDigit   : [0-9a-fA-F] ;
+// Special token for array brackets
+LBRACK : '[' ;
+RBRACK : ']' ;
 
 // Whitespace and comments
-WS         : [ \t\r\n\u000C]+ -> skip ;
-COMMENT    : '/*' .*? '*/' -> skip ;
+WS : [ \t\r\n]+ -> skip ;
 LINE_COMMENT : '//' ~[\r\n]* -> skip ;
+BLOCK_COMMENT : '/*' .*? '*/' -> skip ;
