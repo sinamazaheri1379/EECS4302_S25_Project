@@ -10,15 +10,42 @@ public class Scope {
     private String name;
     private Scope parent;
     private Map<String, Symbol> symbols;
+    private ClassSymbol enclosingClass;
+    private MethodSymbol enclosingMethod;
     
     public Scope(String name, Scope parent) {
         this.name = name;
         this.parent = parent;
         this.symbols = new LinkedHashMap<>();
+        
+        // Inherit enclosing class/method from parent
+        if (parent != null) {
+            this.enclosingClass = parent.enclosingClass;
+            this.enclosingMethod = parent.enclosingMethod;
+        }
     }
     
     public Scope(Scope parent) {
         this("scope", parent);
+    }
+    
+    /**
+     * Create a scope for a class.
+     */
+    public static Scope createClassScope(String className, Scope parent, ClassSymbol classSymbol) {
+        Scope scope = new Scope(className + "_members", parent);
+        scope.enclosingClass = classSymbol;
+        scope.enclosingMethod = null; // Reset method context
+        return scope;
+    }
+    
+    /**
+     * Create a scope for a method.
+     */
+    public static Scope createMethodScope(String methodName, Scope parent, MethodSymbol methodSymbol) {
+        Scope scope = new Scope(methodName + "_scope", parent);
+        scope.enclosingMethod = methodSymbol;
+        return scope;
     }
     
     /**
@@ -30,6 +57,7 @@ public class Scope {
             return false;
         }
         symbols.put(symbol.getName(), symbol);
+        symbol.setScope(this);
         return true;
     }
     
@@ -65,6 +93,23 @@ public class Scope {
     }
     
     /**
+     * Get all symbols including inherited ones.
+     */
+    public Map<String, Symbol> getAllSymbols() {
+        Map<String, Symbol> allSymbols = new LinkedHashMap<>();
+        
+        // Add parent symbols first
+        if (parent != null) {
+            allSymbols.putAll(parent.getAllSymbols());
+        }
+        
+        // Override with local symbols
+        allSymbols.putAll(symbols);
+        
+        return allSymbols;
+    }
+    
+    /**
      * Get the parent scope.
      */
     public Scope getParent() {
@@ -89,40 +134,46 @@ public class Scope {
      * Get the enclosing class scope, if any.
      */
     public ClassSymbol getEnclosingClass() {
-        Scope current = this;
-        while (current != null) {
-            // Check if current scope belongs to a class
-            for (Symbol symbol : current.symbols.values()) {
-                if (symbol instanceof ClassSymbol) {
-                    ClassSymbol classSymbol = (ClassSymbol) symbol;
-                    if (classSymbol.getMemberScope() == current) {
-                        return classSymbol;
-                    }
-                }
-            }
-            current = current.parent;
-        }
-        return null;
+        return enclosingClass;
+    }
+    
+    /**
+     * Set the enclosing class for this scope.
+     */
+    public void setEnclosingClass(ClassSymbol enclosingClass) {
+        this.enclosingClass = enclosingClass;
     }
     
     /**
      * Get the enclosing method scope, if any.
      */
     public MethodSymbol getEnclosingMethod() {
+        return enclosingMethod;
+    }
+    
+    /**
+     * Set the enclosing method for this scope.
+     */
+    public void setEnclosingMethod(MethodSymbol enclosingMethod) {
+        this.enclosingMethod = enclosingMethod;
+    }
+    
+    /**
+     * Check if this scope is inside a static context.
+     */
+    public boolean isStaticContext() {
+        return enclosingMethod != null && enclosingMethod.isStatic();
+    }
+    
+    /**
+     * Get the global scope by traversing up the parent chain.
+     */
+    public Scope getGlobalScope() {
         Scope current = this;
-        while (current != null) {
-            // Check if current scope belongs to a method
-            for (Symbol symbol : current.symbols.values()) {
-                if (symbol instanceof MethodSymbol) {
-                    MethodSymbol methodSymbol = (MethodSymbol) symbol;
-                    if (methodSymbol.getScope() == current) {
-                        return methodSymbol;
-                    }
-                }
-            }
+        while (current.parent != null) {
             current = current.parent;
         }
-        return null;
+        return current;
     }
     
     @Override

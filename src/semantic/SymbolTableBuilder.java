@@ -1,36 +1,56 @@
-// SymbolTableBuilder.java
 package semantic;
 
 import generated.*;
+import generated.TypeCheckerParser.*;
 import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import java.util.*;
 
 public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
-    private SymbolTable globalScope;
-    private SymbolTable currentScope;
+    private Scope globalScope;
+    private Scope currentScope;
     private ClassSymbol currentClass;
     private List<SemanticError> errors;
     private Set<String> imports;
     
     public SymbolTableBuilder() {
-        this.globalScope = new SymbolTable("global");
+        this.globalScope = new Scope("global", null);
         this.currentScope = globalScope;
         this.errors = new ArrayList<>();
         this.imports = new HashSet<>();
         
+        // Define built-in functions
+        defineBuildInFunctions();
+    }
+    
+    private void defineBuildInFunctions() {
         // Define built-in print function
         FunctionSymbol printFunc = new FunctionSymbol("print", PrimitiveType.VOID, 0, 0);
         printFunc.addParameter(new VariableSymbol("value", PrimitiveType.STRING, 0, 0));
         globalScope.define(printFunc);
+        
+        // Define built-in println function
+        FunctionSymbol printlnFunc = new FunctionSymbol("println", PrimitiveType.VOID, 0, 0);
+        printlnFunc.addParameter(new VariableSymbol("value", PrimitiveType.STRING, 0, 0));
+        globalScope.define(printlnFunc);
     }
     
-    public SymbolTable getGlobalScope() { return globalScope; }
+    public Scope getGlobalScope() { return globalScope; }
     public List<SemanticError> getErrors() { return errors; }
     public Set<String> getImports() { return imports; }
     
+    private void addError(Token token, String message, SemanticError.ErrorType type) {
+        errors.add(new SemanticError(
+            token.getLine(),
+            token.getCharPositionInLine(),
+            message,
+            type
+        ));
+    }
+    
     @Override
-    public Void visitProgram(TypeCheckerParser.ProgramContext ctx) {
+    public Void visitProgram(ProgramContext ctx) {
         // Process imports
         for (var importDecl : ctx.importDecl()) {
             visit(importDecl);
@@ -52,7 +72,7 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
     }
     
     @Override
-    public Void visitImportDecl(TypeCheckerParser.ImportDeclContext ctx) {
+    public Void visitImportDecl(ImportDeclContext ctx) {
         String fileName = ctx.STRING_LITERAL().getText();
         // Remove quotes
         fileName = fileName.substring(1, fileName.length() - 1);
@@ -60,17 +80,15 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         return null;
     }
     
-    private void declareClass(TypeCheckerParser.ClassDeclContext ctx) {
+    private void declareClass(ClassDeclContext ctx) {
         String className = ctx.ID(0).getText();
         Token token = ctx.ID(0).getSymbol();
         
         if (currentScope.resolveLocal(className) != null) {
-            errors.add(new SemanticError(
-                token.getLine(),
-                token.getCharPositionInLine(),
+            addError(token,
                 "Class '" + className + "' is already defined",
                 SemanticError.ErrorType.REDEFINITION
-            ));
+            );
             return;
         }
         
@@ -79,50 +97,50 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
     }
     
     @Override
-    public Void visitClassDecl(TypeCheckerParser.ClassDeclContext ctx) {
+    public Void visitClassDecl(ClassDeclContext ctx) {
         String className = ctx.ID(0).getText();
-        ClassSymbol classSymbol = (ClassSymbol) currentScope.resolve(className);
+        Symbol symbol = currentScope.resolve(className);
         
-        if (classSymbol == null) return null;
+        if (!(symbol instanceof ClassSymbol)) {
+            // Error already reported in declareClass
+            return null;
+        }
+        
+        ClassSymbol classSymbol = (ClassSymbol) symbol;
         
         // Handle inheritance
-        if (ctx.EXTENDS() != null) {
+        if (ctx.EXTENDS() != null && ctx.ID(1) != null) {
             String superClassName = ctx.ID(1).getText();
-            Symbol superClassSymbol = currentScope.resolve(superClassName);
+            Symbol superSymbol = currentScope.resolve(superClassName);
             
-            if (superClassSymbol == null) {
-                errors.add(new SemanticError(
-                    ctx.ID(1).getSymbol().getLine(),
-                    ctx.ID(1).getSymbol().getCharPositionInLine(),
+            if (superSymbol == null) {
+                addError(ctx.ID(1).getSymbol(),
                     "Superclass '" + superClassName + "' not found",
                     SemanticError.ErrorType.UNDEFINED_CLASS
-                ));
-            } else if (!(superClassSymbol instanceof ClassSymbol)) {
-                errors.add(new SemanticError(
-                    ctx.ID(1).getSymbol().getLine(),
-                    ctx.ID(1).getSymbol().getCharPositionInLine(),
+                );
+            } else if (!(superSymbol instanceof ClassSymbol)) {
+                addError(ctx.ID(1).getSymbol(),
                     "'" + superClassName + "' is not a class",
                     SemanticError.ErrorType.TYPE_MISMATCH
-                ));
+                );
             } else {
-                // Check for circular inheritance
-                if (hasCircularInheritance(classSymbol, (ClassSymbol) superClassSymbol)) {
-                    errors.add(new SemanticError(
-                        ctx.ID(1).getSymbol().getLine(),
-                        ctx.ID(1).getSymbol().getCharPositionInLine(),
+                ClassSymbol superClass = (ClassSymbol) superSymbol;
+                if (hasCircularInheritance(classSymbol, superClass)) {
+                    addError(ctx.ID(1).getSymbol(),
                         "Circular inheritance detected",
                         SemanticError.ErrorType.CIRCULAR_INHERITANCE
-                    ));
+                    );
                 } else {
-                    classSymbol.setSuperClass((ClassSymbol) superClassSymbol);
+                    classSymbol.setSuperClass(superClass);
                 }
             }
         }
         
         // Enter class scope
         currentClass = classSymbol;
-        SymbolTable savedScope = currentScope;
-        currentScope = classSymbol.getMemberScope();
+        Scope savedScope = currentScope;
+        currentScope = Scope.createClassScope(className, globalScope, classSymbol);
+        classSymbol.setMemberScope(currentScope);
         
         // Define 'this' in class scope
         VariableSymbol thisSymbol = new VariableSymbol("this", classSymbol.getType(), 0, 0);
@@ -142,61 +160,51 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
     }
     
     private boolean hasCircularInheritance(ClassSymbol child, ClassSymbol parent) {
+        Set<ClassSymbol> visited = new HashSet<>();
         ClassSymbol current = parent;
+        
         while (current != null) {
-            if (current == child) return true;
+            if (current == child) {
+                return true;
+            }
+            if (visited.contains(current)) {
+                return false; // Already checked this path
+            }
+            visited.add(current);
             current = current.getSuperClass();
         }
+        
         return false;
     }
     
     @Override
-    public Void visitFieldDecl(TypeCheckerParser.FieldDeclContext ctx) {
-        // Get visibility
-        VariableSymbol.Visibility visibility = VariableSymbol.Visibility.DEFAULT;
-        if (ctx.visibility() != null) {
-            if (ctx.visibility().PUBLIC() != null) {
-                visibility = VariableSymbol.Visibility.PUBLIC;
-            } else if (ctx.visibility().PRIVATE() != null) {
-                visibility = VariableSymbol.Visibility.PRIVATE;
-            }
-        }
-        
+    public Void visitFieldDecl(FieldDeclContext ctx) {
         boolean isStatic = ctx.STATIC() != null;
         boolean isFinal = ctx.FINAL() != null;
+        VariableSymbol.Visibility visibility = getVisibility(ctx.visibility());
         
-        // Process the variable declaration
-        var varDecl = ctx.varDecl();
-        Type type = getType(varDecl.type());
+        Type type = getType(ctx.varDecl().type());
         
-        for (var declarator : varDecl.varDeclarator()) {
+        for (var declarator : ctx.varDecl().varDeclarator()) {
             String name = declarator.ID().getText();
             Token token = declarator.ID().getSymbol();
             
-            // Check for redefinition
             if (currentScope.resolveLocal(name) != null) {
-                errors.add(new SemanticError(
-                    token.getLine(),
-                    token.getCharPositionInLine(),
+                addError(token,
                     "Field '" + name + "' is already defined in this class",
                     SemanticError.ErrorType.REDEFINITION
-                ));
+                );
                 continue;
             }
             
             // Handle array dimensions
-            Type fieldType = type;
-            int arrayDims = declarator.getChildCount() - 1; // Count '[' tokens
-            for (int i = 0; i < arrayDims / 2; i++) {
-                fieldType = new ArrayType(fieldType);
-            }
+            Type fieldType = handleArrayType(type, declarator);
             
             VariableSymbol field = new VariableSymbol(name, fieldType, token.getLine(), token.getCharPositionInLine());
             field.setVisibility(visibility);
             field.setStatic(isStatic);
             field.setFinal(isFinal);
             
-            // If there's an initializer, mark as initialized
             if (declarator.initializer() != null) {
                 field.setInitialized(true);
             }
@@ -208,86 +216,50 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
     }
     
     @Override
-    public Void visitMethodDecl(TypeCheckerParser.MethodDeclContext ctx) {
+    public Void visitMethodDecl(MethodDeclContext ctx) {
         var funcDecl = ctx.funcDecl();
         String methodName = funcDecl.ID().getText();
         Token token = funcDecl.ID().getSymbol();
         
-        // Get visibility
-        VariableSymbol.Visibility visibility = VariableSymbol.Visibility.DEFAULT;
-        if (ctx.visibility() != null) {
-            if (ctx.visibility().PUBLIC() != null) {
-                visibility = VariableSymbol.Visibility.PUBLIC;
-            } else if (ctx.visibility().PRIVATE() != null) {
-                visibility = VariableSymbol.Visibility.PRIVATE;
-            }
-        }
-        
+        VariableSymbol.Visibility visibility = getVisibility(ctx.visibility());
         boolean isStatic = ctx.STATIC() != null;
         
-        // Get return type
-        Type returnType = funcDecl.VOID() != null ? PrimitiveType.VOID : getType(funcDecl.type());
+        Type returnType = funcDecl.VOID() != null ? 
+            PrimitiveType.VOID : getType(funcDecl.type());
         
         // Check for redefinition
         if (currentScope.resolveLocal(methodName) != null) {
-            errors.add(new SemanticError(
-                token.getLine(),
-                token.getCharPositionInLine(),
+            addError(token,
                 "Method '" + methodName + "' is already defined in this class",
                 SemanticError.ErrorType.REDEFINITION
-            ));
+            );
             return null;
         }
         
-        FunctionSymbol method = new FunctionSymbol(methodName, returnType, token.getLine(), token.getCharPositionInLine());
+        MethodSymbol method = new MethodSymbol(methodName, returnType, token.getLine(), token.getCharPositionInLine());
         method.setVisibility(visibility);
         method.setStatic(isStatic);
+        method.setOwnerClass(currentClass);
         
         // Create method scope
-        SymbolTable methodScope = new SymbolTable(methodName + "_scope", currentScope);
+        Scope methodScope = Scope.createMethodScope(methodName, currentScope, method);
         method.setFunctionScope(methodScope);
         
         // Process parameters
-        SymbolTable savedScope = currentScope;
+        Scope savedScope = currentScope;
         currentScope = methodScope;
         
         if (funcDecl.paramList() != null) {
-            for (var param : funcDecl.paramList().param()) {
-                String paramName = param.ID().getText();
-                Type paramType = getType(param.type());
-                Token paramToken = param.ID().getSymbol();
-                
-                // Handle array parameters
-                int arrayDims = param.getChildCount() - 2; // Count '[' tokens after ID
-                for (int i = 0; i < arrayDims / 2; i++) {
-                    paramType = new ArrayType(paramType);
-                }
-                
-                VariableSymbol paramSymbol = new VariableSymbol(paramName, paramType, 
-                    paramToken.getLine(), paramToken.getCharPositionInLine());
-                paramSymbol.setInitialized(true);
-                
-                if (param.FINAL() != null) {
-                    paramSymbol.setFinal(true);
-                }
-                
-                // Check for duplicate parameters
-                if (methodScope.resolveLocal(paramName) != null) {
-                    errors.add(new SemanticError(
-                        paramToken.getLine(),
-                        paramToken.getCharPositionInLine(),
-                        "Duplicate parameter name '" + paramName + "'",
-                        SemanticError.ErrorType.REDEFINITION
-                    ));
-                } else {
-                    methodScope.define(paramSymbol);
-                    method.addParameter(paramSymbol);
-                }
-            }
+            processParameters(funcDecl.paramList(), method);
         }
         
         // Define method in class scope
         savedScope.define(method);
+        
+        // Add to class method list for overloading support
+        if (currentClass != null) {
+            currentClass.addMethod(method);
+        }
         
         // Process method body
         visit(funcDecl.block());
@@ -298,87 +270,71 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
     }
     
     @Override
-    public Void visitConstructor(TypeCheckerParser.ConstructorContext ctx) {
-        var constructorDecl = ctx.constructorDecl();
-        String constructorName = constructorDecl.ID().getText();
-        Token token = constructorDecl.ID().getSymbol();
+    public Void visitConstructor(ConstructorContext ctx) {
+        return visit(ctx.constructorDecl());
+    }
+    
+    @Override
+    public Void visitConstructorDecl(ConstructorDeclContext ctx) {
+        String constructorName = ctx.ID().getText();
+        Token token = ctx.ID().getSymbol();
         
         // Verify constructor name matches class name
         if (currentClass == null || !constructorName.equals(currentClass.getName())) {
-            errors.add(new SemanticError(
-                token.getLine(),
-                token.getCharPositionInLine(),
+            addError(token,
                 "Constructor name must match class name",
                 SemanticError.ErrorType.CONSTRUCTOR_ERROR
-            ));
+            );
             return null;
         }
         
-        // Check if constructor already exists
-        if (currentClass.getConstructor() != null) {
-            errors.add(new SemanticError(
-                token.getLine(),
-                token.getCharPositionInLine(),
-                "Constructor already defined for class '" + constructorName + "'",
-                SemanticError.ErrorType.REDEFINITION
-            ));
-            return null;
-        }
+        VariableSymbol.Visibility visibility = getVisibility(ctx.visibility());
         
-        // Get visibility
-        VariableSymbol.Visibility visibility = VariableSymbol.Visibility.DEFAULT;
-        if (constructorDecl.visibility() != null) {
-            if (constructorDecl.visibility().PUBLIC() != null) {
-                visibility = VariableSymbol.Visibility.PUBLIC;
-            } else if (constructorDecl.visibility().PRIVATE() != null) {
-                visibility = VariableSymbol.Visibility.PRIVATE;
-            }
-        }
-        
-        ConstructorSymbol constructor = new ConstructorSymbol(constructorName, token.getLine(), token.getCharPositionInLine());
+        ConstructorSymbol constructor = new ConstructorSymbol(
+            constructorName, token.getLine(), token.getCharPositionInLine()
+        );
         constructor.setVisibility(visibility);
         
         // Create constructor scope
-        SymbolTable constructorScope = new SymbolTable(constructorName + "_constructor", currentScope);
+        Scope constructorScope = Scope.createMethodScope(
+            constructorName + "_constructor", currentScope, null
+        );
         constructor.setConstructorScope(constructorScope);
         
         // Process parameters
-        SymbolTable savedScope = currentScope;
+        Scope savedScope = currentScope;
         currentScope = constructorScope;
         
-        if (constructorDecl.paramList() != null) {
-            for (var param : constructorDecl.paramList().param()) {
-                String paramName = param.ID().getText();
-                Type paramType = getType(param.type());
-                Token paramToken = param.ID().getSymbol();
-                
-                VariableSymbol paramSymbol = new VariableSymbol(paramName, paramType, 
-                    paramToken.getLine(), paramToken.getCharPositionInLine());
-                paramSymbol.setInitialized(true);
-                
-                if (param.FINAL() != null) {
-                    paramSymbol.setFinal(true);
-                }
-                
-                if (constructorScope.resolveLocal(paramName) != null) {
-                    errors.add(new SemanticError(
-                        paramToken.getLine(),
-                        paramToken.getCharPositionInLine(),
-                        "Duplicate parameter name '" + paramName + "'",
-                        SemanticError.ErrorType.REDEFINITION
-                    ));
-                } else {
-                    constructorScope.define(paramSymbol);
+        List<VariableSymbol> params = new ArrayList<>();
+        if (ctx.paramList() != null) {
+            for (var param : ctx.paramList().param()) {
+                VariableSymbol paramSymbol = processParameter(param);
+                if (paramSymbol != null) {
+                    params.add(paramSymbol);
                     constructor.addParameter(paramSymbol);
                 }
             }
         }
         
-        // Set constructor for class
-        currentClass.setConstructor(constructor);
+        // Check if constructor with same signature already exists
+        boolean isDuplicate = false;
+        for (ConstructorSymbol existing : currentClass.getConstructors()) {
+            if (hasSameParameterTypes(existing.getParameters(), params)) {
+                addError(token,
+                    "Constructor with same parameter types already defined",
+                    SemanticError.ErrorType.REDEFINITION
+                );
+                isDuplicate = true;
+                break;
+            }
+        }
+        
+        if (!isDuplicate) {
+            currentClass.addConstructor(constructor);
+        }
         
         // Process constructor body
-        visit(constructorDecl.block());
+        visit(ctx.block());
         
         currentScope = savedScope;
         
@@ -386,7 +342,7 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
     }
     
     @Override
-    public Void visitGlobalVarDecl(TypeCheckerParser.GlobalVarDeclContext ctx) {
+    public Void visitGlobalVarDecl(GlobalVarDeclContext ctx) {
         boolean isStatic = ctx.STATIC() != null;
         boolean isFinal = ctx.FINAL() != null;
         
@@ -398,20 +354,14 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
             Token token = declarator.ID().getSymbol();
             
             if (currentScope.resolveLocal(name) != null) {
-                errors.add(new SemanticError(
-                    token.getLine(),
-                    token.getCharPositionInLine(),
+                addError(token,
                     "Global variable '" + name + "' is already defined",
                     SemanticError.ErrorType.REDEFINITION
-                ));
+                );
                 continue;
             }
             
-            Type varType = type;
-            int arrayDims = declarator.getChildCount() - 1;
-            for (int i = 0; i < arrayDims / 2; i++) {
-                varType = new ArrayType(varType);
-            }
+            Type varType = handleArrayType(type, declarator);
             
             VariableSymbol var = new VariableSymbol(name, varType, token.getLine(), token.getCharPositionInLine());
             var.setStatic(isStatic);
@@ -428,61 +378,31 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
     }
     
     @Override
-    public Void visitFuncDecl(TypeCheckerParser.FuncDeclContext ctx) {
+    public Void visitFuncDecl(FuncDeclContext ctx) {
         String funcName = ctx.ID().getText();
         Token token = ctx.ID().getSymbol();
         
-        Type returnType = ctx.VOID() != null ? PrimitiveType.VOID : getType(ctx.type());
+        Type returnType = ctx.VOID() != null ? 
+            PrimitiveType.VOID : getType(ctx.type());
         
         if (currentScope.resolveLocal(funcName) != null) {
-            errors.add(new SemanticError(
-                token.getLine(),
-                token.getCharPositionInLine(),
+            addError(token,
                 "Function '" + funcName + "' is already defined",
                 SemanticError.ErrorType.REDEFINITION
-            ));
+            );
             return null;
         }
         
         FunctionSymbol function = new FunctionSymbol(funcName, returnType, token.getLine(), token.getCharPositionInLine());
         
-        SymbolTable functionScope = new SymbolTable(funcName + "_scope", currentScope);
+        Scope functionScope = new Scope(funcName + "_scope", currentScope);
         function.setFunctionScope(functionScope);
         
-        SymbolTable savedScope = currentScope;
+        Scope savedScope = currentScope;
         currentScope = functionScope;
         
         if (ctx.paramList() != null) {
-            for (var param : ctx.paramList().param()) {
-                String paramName = param.ID().getText();
-                Type paramType = getType(param.type());
-                Token paramToken = param.ID().getSymbol();
-                
-                int arrayDims = param.getChildCount() - 2;
-                for (int i = 0; i < arrayDims / 2; i++) {
-                    paramType = new ArrayType(paramType);
-                }
-                
-                VariableSymbol paramSymbol = new VariableSymbol(paramName, paramType, 
-                    paramToken.getLine(), paramToken.getCharPositionInLine());
-                paramSymbol.setInitialized(true);
-                
-                if (param.FINAL() != null) {
-                    paramSymbol.setFinal(true);
-                }
-                
-                if (functionScope.resolveLocal(paramName) != null) {
-                    errors.add(new SemanticError(
-                        paramToken.getLine(),
-                        paramToken.getCharPositionInLine(),
-                        "Duplicate parameter name '" + paramName + "'",
-                        SemanticError.ErrorType.REDEFINITION
-                    ));
-                } else {
-                    functionScope.define(paramSymbol);
-                    function.addParameter(paramSymbol);
-                }
-            }
+            processParameters(ctx.paramList(), function);
         }
         
         savedScope.define(function);
@@ -495,44 +415,23 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
     }
     
     @Override
-    public Void visitBlock(TypeCheckerParser.BlockContext ctx) {
-        SymbolTable blockScope = new SymbolTable("block", currentScope);
-        SymbolTable savedScope = currentScope;
-        currentScope = blockScope;
+    public Void visitVarDecl(VarDeclContext ctx) {
+        Type type = getType(ctx.type());
+        boolean isFinal = ctx.FINAL() != null;
         
-        for (var stmt : ctx.statement()) {
-            visit(stmt);
-        }
-        
-        currentScope = savedScope;
-        return null;
-    }
-    
-    @Override
-    public Void visitLocalVarDeclStmt(TypeCheckerParser.LocalVarDeclStmtContext ctx) {
-        var localVarDecl = ctx.localVarDecl();
-        boolean isFinal = localVarDecl.FINAL() != null;
-        Type type = getType(localVarDecl.type());
-        
-        for (var declarator : localVarDecl.varDeclarator()) {
+        for (var declarator : ctx.varDeclarator()) {
             String name = declarator.ID().getText();
             Token token = declarator.ID().getSymbol();
             
             if (currentScope.resolveLocal(name) != null) {
-                errors.add(new SemanticError(
-                    token.getLine(),
-                    token.getCharPositionInLine(),
+                addError(token,
                     "Variable '" + name + "' is already defined in this scope",
                     SemanticError.ErrorType.REDEFINITION
-                ));
+                );
                 continue;
             }
             
-            Type varType = type;
-            int arrayDims = declarator.getChildCount() - 1;
-            for (int i = 0; i < arrayDims / 2; i++) {
-                varType = new ArrayType(varType);
-            }
+            Type varType = handleArrayType(type, declarator);
             
             VariableSymbol var = new VariableSymbol(name, varType, token.getLine(), token.getCharPositionInLine());
             var.setFinal(isFinal);
@@ -547,7 +446,106 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         return null;
     }
     
-    private Type getType(TypeCheckerParser.TypeContext ctx) {
+    private Type handleArrayType(Type baseType, VarDeclaratorContext declarator) {
+        Type result = baseType;
+        
+        // Count array dimensions by looking for '[' tokens after the ID
+        int tokenIndex = 0;
+        for (int i = 0; i < declarator.getChildCount(); i++) {
+            ParseTree child = declarator.getChild(i);
+            if (child instanceof TerminalNode) {
+                TerminalNode terminal = (TerminalNode) child;
+                if (terminal.getSymbol().getType() == TypeCheckerParser.LBRACK) {
+                    result = new ArrayType(result);
+                }
+            }
+        }
+        
+        return result;
+    }
+    
+    private void processParameters(ParamListContext paramList, FunctionSymbol function) {
+        for (var param : paramList.param()) {
+            VariableSymbol paramSymbol = processParameter(param);
+            if (paramSymbol != null) {
+                function.addParameter(paramSymbol);
+            }
+        }
+    }
+    
+    private VariableSymbol processParameter(ParamContext param) {
+        String paramName = param.ID().getText();
+        Type paramType = getType(param.type());
+        Token paramToken = param.ID().getSymbol();
+        
+        // Handle array parameters
+        for (int i = 0; i < param.getChildCount(); i++) {
+            ParseTree child = param.getChild(i);
+            if (child instanceof TerminalNode) {
+                TerminalNode terminal = (TerminalNode) child;
+                if (terminal.getSymbol().getType() == TypeCheckerParser.LBRACK) {
+                    paramType = new ArrayType(paramType);
+                }
+            }
+        }
+        
+        VariableSymbol paramSymbol = new VariableSymbol(
+            paramName, paramType, paramToken.getLine(), paramToken.getCharPositionInLine()
+        );
+        paramSymbol.setInitialized(true);
+        
+        if (param.FINAL() != null) {
+            paramSymbol.setFinal(true);
+        }
+        
+        // Check for duplicate parameters
+        if (currentScope.resolveLocal(paramName) != null) {
+            addError(paramToken,
+                "Duplicate parameter name '" + paramName + "'",
+                SemanticError.ErrorType.REDEFINITION
+            );
+            return null;
+        }
+        
+        currentScope.define(paramSymbol);
+        return paramSymbol;
+    }
+    
+    private boolean hasSameParameterTypes(List<VariableSymbol> params1, List<VariableSymbol> params2) {
+        if (params1.size() != params2.size()) {
+            return false;
+        }
+        
+        for (int i = 0; i < params1.size(); i++) {
+            if (!params1.get(i).getType().equals(params2.get(i).getType())) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    private VariableSymbol.Visibility getVisibility(VisibilityContext ctx) {
+        if (ctx == null) {
+            return VariableSymbol.Visibility.DEFAULT;
+        }
+        
+        if (ctx.PUBLIC() != null) {
+            return VariableSymbol.Visibility.PUBLIC;
+        } else if (ctx.PRIVATE() != null) {
+            return VariableSymbol.Visibility.PRIVATE;
+        } else if (ctx.PROTECTED() != null) {
+            return VariableSymbol.Visibility.PROTECTED;
+        }
+        
+        return VariableSymbol.Visibility.DEFAULT;
+    }
+    
+    private Type getType(TypeContext ctx) {
+        if (ctx == null) {
+            return ErrorType.getInstance();
+        }
+        
         if (ctx.primitiveType() != null) {
             var primType = ctx.primitiveType();
             if (primType.INT() != null) return PrimitiveType.INT;
@@ -561,8 +559,9 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
             if (classSymbol instanceof ClassSymbol) {
                 return new ClassType(className, (ClassSymbol) classSymbol);
             }
-            return ErrorType.getInstance();
+            return new ClassType(className, null); // Forward reference
         }
+        
         return ErrorType.getInstance();
     }
 }

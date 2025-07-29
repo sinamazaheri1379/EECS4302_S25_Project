@@ -3,6 +3,7 @@ package semantic;
 import generated.*;
 import generated.TypeCheckerParser.*;
 import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import java.util.*;
 
@@ -12,28 +13,54 @@ import java.util.*;
  */
 public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     
-    private SymbolTable symbolTable;
+    private Scope globalScope;
     private Scope currentScope;
     private ClassSymbol currentClass;
     private MethodSymbol currentMethod;
     private boolean inStaticContext = false;
     private int loopDepth = 0;
     private Set<VariableSymbol> initializedVars = new HashSet<>();
+    private Set<VariableSymbol> conditionallyInitializedVars = new HashSet<>();
     private List<SemanticError> errors = new ArrayList<>();
     
     // Return tracking
     private class ReturnTracker {
-        boolean hasReturn = false;
+        boolean hasDefiniteReturn = false;
         boolean hasConditionalReturn = false;
-        Set<List<String>> returnPaths = new HashSet<>();
+        Set<String> returnPaths = new HashSet<>();
+        List<ReturnInfo> returns = new ArrayList<>();
+        
+        static class ReturnInfo {
+            Token token;
+            Type type;
+            boolean isConditional;
+            
+            ReturnInfo(Token token, Type type, boolean isConditional) {
+                this.token = token;
+                this.type = type;
+                this.isConditional = isConditional;
+            }
+        }
+        
+        void addReturn(Token token, Type type, boolean conditional) {
+            returns.add(new ReturnInfo(token, type, conditional));
+            if (!conditional) {
+                hasDefiniteReturn = true;
+            } else {
+                hasConditionalReturn = true;
+            }
+        }
+        
+        boolean allPathsReturn() {
+            return hasDefiniteReturn;
+        }
     }
     
     private Stack<ReturnTracker> returnTrackers = new Stack<>();
-    private Set<VariableSymbol> conditionallyInitializedVars = new HashSet<>();
     
-    public TypeChecker(SymbolTable symbolTable) {
-        this.symbolTable = symbolTable;
-        this.currentScope = symbolTable.getGlobalScope();
+    public TypeChecker(Scope globalScope) {
+        this.globalScope = globalScope;
+        this.currentScope = globalScope;
     }
     
     public List<SemanticError> getErrors() {
@@ -41,13 +68,17 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     }
     
     private void addError(Token token, String message, SemanticError.ErrorType type) {
-        errors.add(new SemanticError(token, message, type));
+        if (token != null) {
+            errors.add(new SemanticError(token, message, type));
+        }
     }
     
     // Program visitor
     
     @Override
     public Type visitProgram(ProgramContext ctx) {
+        if (ctx == null) return null;
+        
         // Visit all declarations
         for (var decl : ctx.declaration()) {
             visit(decl);
@@ -59,20 +90,24 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     
     @Override
     public Type visitClassDecl(ClassDeclContext ctx) {
-        String className = ctx.ID(0).getText();
-        ClassSymbol classSymbol = (ClassSymbol) symbolTable.getGlobalScope().resolve(className);
+        if (ctx == null || ctx.ID().isEmpty()) return null;
         
-        if (classSymbol == null) {
+        String className = ctx.ID(0).getText();
+        Symbol symbol = globalScope.resolve(className);
+        
+        if (!(symbol instanceof ClassSymbol)) {
             addError(ctx.ID(0).getSymbol(), 
                 "Class '" + className + "' not found in symbol table",
                 SemanticError.ErrorType.UNDEFINED_CLASS);
             return null;
         }
         
+        ClassSymbol classSymbol = (ClassSymbol) symbol;
+        
         // Check inheritance
-        if (ctx.EXTENDS() != null && ctx.ID(1) != null) {
+        if (ctx.EXTENDS() != null && ctx.ID().size() > 1) {
             String superClassName = ctx.ID(1).getText();
-            Symbol superSymbol = symbolTable.getGlobalScope().resolve(superClassName);
+            Symbol superSymbol = globalScope.resolve(superClassName);
             
             if (superSymbol == null) {
                 addError(ctx.ID(1).getSymbol(),
@@ -96,6 +131,25 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
             visit(member);
         }
         
+        // Check for required constructors if needed
+        if (classSymbol.getConstructors().isEmpty() && classSymbol.getSuperClass() != null) {
+            // If superclass has non-default constructor, this class needs one too
+            ClassSymbol superClass = classSymbol.getSuperClass();
+            boolean hasNonDefaultConstructor = false;
+            for (ConstructorSymbol constructor : superClass.getConstructors()) {
+                if (!constructor.getParameters().isEmpty()) {
+                    hasNonDefaultConstructor = true;
+                    break;
+                }
+            }
+            
+            if (hasNonDefaultConstructor) {
+                addError(ctx.ID(0).getSymbol(),
+                    "Class must define a constructor because superclass has no default constructor",
+                    SemanticError.ErrorType.CONSTRUCTOR_ERROR);
+            }
+        }
+        
         // Restore previous context
         currentClass = previousClass;
         currentScope = previousScope;
@@ -105,6 +159,8 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     
     @Override
     public Type visitFieldDecl(FieldDeclContext ctx) {
+        if (ctx == null) return null;
+        
         boolean isStatic = ctx.STATIC() != null;
         boolean isFinal = ctx.FINAL() != null;
         
@@ -122,6 +178,8 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     
     @Override
     public Type visitMethodDecl(MethodDeclContext ctx) {
+        if (ctx == null || ctx.funcDecl() == null) return null;
+        
         boolean isStatic = ctx.STATIC() != null;
         
         // Set static context
@@ -137,45 +195,59 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     }
     
     @Override
-    public Type visitConstructor(ConstructorDeclContext ctx) {
+    public Type visitConstructor(ConstructorContext ctx) {
+        if (ctx == null || ctx.constructorDecl() == null) return null;
         return visit(ctx.constructorDecl());
     }
     
     @Override
     public Type visitConstructorDecl(ConstructorDeclContext ctx) {
+        if (ctx == null || ctx.ID() == null || currentClass == null) return null;
+        
         String constructorName = ctx.ID().getText();
         
         // Verify constructor name matches class name
-        if (currentClass != null && !constructorName.equals(currentClass.getName())) {
+        if (!constructorName.equals(currentClass.getName())) {
             addError(ctx.ID().getSymbol(),
                 "Constructor name '" + constructorName + "' must match class name '" + 
                 currentClass.getName() + "'",
                 SemanticError.ErrorType.INVALID_CONSTRUCTOR);
         }
         
-        // Get constructor symbol
+        // Find matching constructor
         ConstructorSymbol constructor = null;
-        for (Symbol member : currentClass.getMemberScope().getSymbols()) {
-            if (member instanceof ConstructorSymbol && member.getName().equals(constructorName)) {
-                constructor = (ConstructorSymbol) member;
+        List<Type> paramTypes = new ArrayList<>();
+        
+        // Get parameter types from context
+        if (ctx.paramList() != null) {
+            for (var param : ctx.paramList().param()) {
+                Type paramType = getTypeFromParamContext(param);
+                if (paramType != null) {
+                    paramTypes.add(paramType);
+                }
+            }
+        }
+        
+        // Find constructor with matching parameters
+        for (ConstructorSymbol c : currentClass.getConstructors()) {
+            if (matchesParameterTypes(c.getParameters(), paramTypes)) {
+                constructor = c;
                 break;
             }
         }
         
         if (constructor == null) {
             addError(ctx.ID().getSymbol(),
-                "Constructor symbol not found in symbol table",
+                "Constructor not found in symbol table",
                 SemanticError.ErrorType.INTERNAL_ERROR);
             return null;
         }
         
-        // Set current method context
+        // Set current method context (constructors don't have return tracking)
         MethodSymbol previousMethod = currentMethod;
-        currentMethod = constructor;
+        currentMethod = null; // Constructors are not methods
         Scope previousScope = currentScope;
-        currentScope = constructor.getScope();
-        
-        // No return tracking for constructors
+        currentScope = constructor.getConstructorScope();
         
         // Visit block
         visit(ctx.block());
@@ -191,24 +263,29 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     
     @Override
     public Type visitFuncDecl(FuncDeclContext ctx) {
+        if (ctx == null || ctx.ID() == null) return null;
+        
         String funcName = ctx.ID().getText();
         
         // Get function symbol from current scope
         Symbol symbol = currentScope.resolve(funcName);
-        if (!(symbol instanceof MethodSymbol)) {
+        if (symbol == null || !(symbol instanceof FunctionSymbol)) {
             addError(ctx.ID().getSymbol(),
                 "Function '" + funcName + "' not found in symbol table",
                 SemanticError.ErrorType.INTERNAL_ERROR);
             return null;
         }
         
-        MethodSymbol method = (MethodSymbol) symbol;
+        FunctionSymbol function = (FunctionSymbol) symbol;
         
-        // Set current method context
+        // Set current method context if it's a method
         MethodSymbol previousMethod = currentMethod;
-        currentMethod = method;
+        if (function instanceof MethodSymbol) {
+            currentMethod = (MethodSymbol) function;
+        }
+        
         Scope previousScope = currentScope;
-        currentScope = method.getScope();
+        currentScope = function.getFunctionScope();
         
         // Initialize return tracking
         ReturnTracker tracker = new ReturnTracker();
@@ -218,9 +295,11 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         visit(ctx.block());
         
         // Check return requirements
-        Type returnType = method.getReturnType();
-        if (!returnType.equals(PrimitiveType.VOID) && !tracker.hasReturn) {
-            addError(ctx.block().getStop(),
+        Type returnType = function.getReturnType();
+        if (!returnType.equals(PrimitiveType.VOID) && !tracker.allPathsReturn()) {
+            Token errorToken = ctx.block() != null && ctx.block().getStop() != null ? 
+                ctx.block().getStop() : ctx.ID().getSymbol();
+            addError(errorToken,
                 "Method '" + funcName + "' must return a value of type " + returnType.getName(),
                 SemanticError.ErrorType.MISSING_RETURN);
         }
@@ -230,58 +309,56 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         currentMethod = previousMethod;
         currentScope = previousScope;
         
-        return method.getType();
+        return function.getType();
     }
     
     // Variable declaration visitors
     
     @Override
     public Type visitGlobalVarDecl(GlobalVarDeclContext ctx) {
+        if (ctx == null || ctx.varDecl() == null) return null;
         return visit(ctx.varDecl());
     }
     
     @Override
     public Type visitVarDecl(VarDeclContext ctx) {
+        if (ctx == null || ctx.type() == null) return null;
+        
         Type type = visit(ctx.type());
         boolean isFinal = ctx.FINAL() != null;
         
         for (var declarator : ctx.varDeclarator()) {
+            if (declarator == null || declarator.ID() == null) continue;
+            
             String varName = declarator.ID().getText();
             Type varType = type;
             
             // Handle array dimensions
-            int arrayDims = declarator.getChildCount() - 
-                           (declarator.initializer() != null ? 2 : 1);
-            arrayDims = arrayDims / 2; // Each dimension is '[' ']'
-            
-            for (int i = 0; i < arrayDims; i++) {
-                varType = new ArrayType(varType);
-            }
+            varType = getArrayType(varType, declarator);
             
             // Get variable symbol
             Symbol symbol = currentScope.resolveLocal(varName);
             if (!(symbol instanceof VariableSymbol)) {
                 addError(declarator.ID().getSymbol(),
-                    "Variable '" + varName + "' not properly defined in symbol table",
+                    "Variable '" + varName + "' not found in symbol table",
                     SemanticError.ErrorType.INTERNAL_ERROR);
                 continue;
             }
             
             VariableSymbol var = (VariableSymbol) symbol;
             
-            // Check initializer
+            // Process initializer
             if (declarator.initializer() != null) {
                 Type initType = visit(declarator.initializer());
-                
-                if (!TypeCompatibility.isAssignmentCompatible(varType, initType)) {
+                if (initType != null && !TypeCompatibility.isAssignmentCompatible(varType, initType)) {
                     addError(declarator.initializer().getStart(),
-                        "Cannot assign " + initType.getName() + " to " + varType.getName(),
+                        "Cannot initialize " + varType.getName() + " with " + initType.getName(),
                         SemanticError.ErrorType.TYPE_MISMATCH);
-                } else {
-                    var.setInitialized(true);
-                    initializedVars.add(var);
                 }
+                var.setInitialized(true);
+                initializedVars.add(var);
             } else if (isFinal) {
+                // Final variables must be initialized
                 addError(declarator.ID().getSymbol(),
                     "Final variable '" + varName + "' must be initialized",
                     SemanticError.ErrorType.UNINITIALIZED_FINAL);
@@ -291,140 +368,221 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         return type;
     }
     
+    // Statement visitors
+    
     @Override
-    public Type visitInitializer(InitializerContext ctx) {
-        if (ctx.expr() != null) {
-            return visit(ctx.expr());
-        } else if (ctx.arrayInitializer() != null) {
-            return visit(ctx.arrayInitializer());
+    public Type visitBlock(BlockContext ctx) {
+        if (ctx == null) return null;
+        
+        // Create new scope for block
+        Scope blockScope = new Scope("block", currentScope);
+        Scope previousScope = currentScope;
+        currentScope = blockScope;
+        
+        // Visit all statements
+        for (var stmt : ctx.statement()) {
+            visit(stmt);
         }
-        return ErrorType.getInstance();
+        
+        // Restore previous scope
+        currentScope = previousScope;
+        return null;
     }
     
     @Override
-    public Type visitArrayInitializer(ArrayInitializerContext ctx) {
-        if (ctx.initializer().isEmpty()) {
-            return new ArrayType(ErrorType.getInstance());
+    public Type visitIfStmt(IfStmtContext ctx) {
+        if (ctx == null || ctx.expr() == null) return null;
+        
+        // Check condition
+        Type condType = visit(ctx.expr());
+        if (condType != null && !condType.equals(PrimitiveType.BOOLEAN)) {
+            addError(ctx.expr().getStart(),
+                "Condition must be boolean, found " + condType.getName(),
+                SemanticError.ErrorType.TYPE_MISMATCH);
         }
         
-        // Get the type of the first element
-        Type elementType = visit(ctx.initializer(0));
+        // Track variables initialized in branches
+        Set<VariableSymbol> beforeIf = new HashSet<>(initializedVars);
+        Set<VariableSymbol> inThen = new HashSet<>();
+        Set<VariableSymbol> inElse = new HashSet<>();
         
-        // Check that all elements have compatible types
-        for (int i = 1; i < ctx.initializer().size(); i++) {
-            Type type = visit(ctx.initializer(i));
-            if (!TypeCompatibility.isAssignmentCompatible(elementType, type)) {
-                addError(ctx.initializer(i).getStart(),
-                    "Array initializer type mismatch: expected " + elementType.getName() + 
-                    " but found " + type.getName(),
+        // Visit then branch
+        if (ctx.statement(0) != null) {
+            visit(ctx.statement(0));
+            inThen.addAll(initializedVars);
+            inThen.removeAll(beforeIf);
+        }
+        
+        // Reset for else branch
+        initializedVars = new HashSet<>(beforeIf);
+        
+        // Visit else branch if present
+        if (ctx.ELSE() != null && ctx.statement(1) != null) {
+            visit(ctx.statement(1));
+            inElse.addAll(initializedVars);
+            inElse.removeAll(beforeIf);
+            
+            // Variables initialized in both branches are definitely initialized
+            inThen.retainAll(inElse);
+            initializedVars.addAll(inThen);
+        } else {
+            // No else branch, so no new definitely initialized variables
+            initializedVars = beforeIf;
+        }
+        
+        return null;
+    }
+    
+    @Override
+    public Type visitWhileStmt(WhileStmtContext ctx) {
+        if (ctx == null || ctx.expr() == null) return null;
+        
+        // Check condition
+        Type condType = visit(ctx.expr());
+        if (condType != null && !condType.equals(PrimitiveType.BOOLEAN)) {
+            addError(ctx.expr().getStart(),
+                "While condition must be boolean, found " + condType.getName(),
+                SemanticError.ErrorType.TYPE_MISMATCH);
+        }
+        
+        // Enter loop context
+        loopDepth++;
+        
+        // Visit body
+        if (ctx.statement() != null) {
+            visit(ctx.statement());
+        }
+        
+        // Exit loop context
+        loopDepth--;
+        
+        return null;
+    }
+    
+    @Override
+    public Type visitForStmt(ForStmtContext ctx) {
+        if (ctx == null) return null;
+        
+        // Create new scope for the for loop
+        Scope forScope = new Scope("for", currentScope);
+        Scope previousScope = currentScope;
+        currentScope = forScope;
+        
+        // Process init
+        if (ctx.forInit() != null) {
+            visit(ctx.forInit());
+        }
+        
+        // Check condition
+        if (ctx.expr() != null) {
+            Type condType = visit(ctx.expr());
+            if (condType != null && !condType.equals(PrimitiveType.BOOLEAN)) {
+                addError(ctx.expr().getStart(),
+                    "For condition must be boolean, found " + condType.getName(),
                     SemanticError.ErrorType.TYPE_MISMATCH);
             }
         }
         
-        return new ArrayType(elementType);
+        // Process update
+        if (ctx.forUpdate() != null) {
+            visit(ctx.forUpdate());
+        }
+        
+        // Enter loop context
+        loopDepth++;
+        
+        // Visit body
+        if (ctx.statement() != null) {
+            visit(ctx.statement());
+        }
+        
+        // Exit loop context
+        loopDepth--;
+        
+        // Restore scope
+        currentScope = previousScope;
+        
+        return null;
     }
     
-    // Block and statement visitors
+    @Override
+    public Type visitBreakStmt(BreakStmtContext ctx) {
+        if (ctx == null) return null;
+        
+        if (loopDepth == 0) {
+            addError(ctx.BREAK().getSymbol(),
+                "Break statement must be inside a loop",
+                SemanticError.ErrorType.INVALID_BREAK);
+        }
+        
+        return null;
+    }
     
     @Override
-    public Type visitBlock(BlockContext ctx) {
-        if (ctx == null || ctx.statement() == null) return null;
+    public Type visitContinueStmt(ContinueStmtContext ctx) {
+        if (ctx == null) return null;
         
-        // Create new scope if needed (not for method/constructor blocks)
-        boolean createNewScope = currentMethod == null || 
-                                currentScope != currentMethod.getScope();
+        if (loopDepth == 0) {
+            addError(ctx.CONTINUE().getSymbol(),
+                "Continue statement must be inside a loop",
+                SemanticError.ErrorType.INVALID_CONTINUE);
+        }
         
-        if (createNewScope) {
-            Scope previousScope = currentScope;
-            currentScope = new Scope(currentScope);
-            
-            // Track variables initialized in this block
-            Set<VariableSymbol> blockInitialized = new HashSet<>();
-            
-            // Visit all statements
-            for (var stmt : ctx.statement()) {
-                visit(stmt);
-                
-                // Track new initializations
-                Set<VariableSymbol> newInits = new HashSet<>(initializedVars);
-                newInits.removeAll(blockInitialized);
-                blockInitialized.addAll(newInits);
-            }
-            
-            // Variables initialized in block are not considered initialized outside
-            initializedVars.removeAll(blockInitialized);
-            currentScope = previousScope;
+        return null;
+    }
+    
+    @Override
+    public Type visitReturnStmt(ReturnStmtContext ctx) {
+        if (ctx == null) return null;
+        
+        Type returnType = null;
+        if (ctx.expr() != null) {
+            returnType = visit(ctx.expr());
         } else {
-            // Fallback: visit statements without scope change
-            for (var stmt : ctx.statement()) {
-                if (stmt != null) {
-                    visit(stmt);
-                }
+            returnType = PrimitiveType.VOID;
+        }
+        
+        // Check if we're in a method/function
+        if (currentMethod == null && returnTrackers.isEmpty()) {
+            addError(ctx.RETURN().getSymbol(),
+                "Return statement must be inside a method or function",
+                SemanticError.ErrorType.INVALID_RETURN);
+            return null;
+        }
+        
+        // Get expected return type
+        Type expectedType = PrimitiveType.VOID;
+        if (currentMethod != null) {
+            expectedType = currentMethod.getReturnType();
+        } else if (!returnTrackers.isEmpty()) {
+            // We're in a function, need to get its return type
+            // This is handled by the ReturnTracker
+        }
+        
+        // Check return type compatibility
+        if (expectedType.equals(PrimitiveType.VOID)) {
+            if (ctx.expr() != null) {
+                addError(ctx.RETURN().getSymbol(),
+                    "Cannot return a value from a void method",
+                    SemanticError.ErrorType.TYPE_MISMATCH);
+            }
+        } else {
+            if (ctx.expr() == null) {
+                addError(ctx.RETURN().getSymbol(),
+                    "Missing return value",
+                    SemanticError.ErrorType.TYPE_MISMATCH);
+            } else if (returnType != null && !TypeCompatibility.isAssignmentCompatible(expectedType, returnType)) {
+                addError(ctx.expr().getStart(),
+                    "Cannot return " + returnType.getName() + " from method with return type " + 
+                    expectedType.getName(),
+                    SemanticError.ErrorType.TYPE_MISMATCH);
             }
         }
         
-        return null;
-    }
-    
-    // Statement visitors - Each statement type has its own visit method
-    
-    @Override
-    public Type visitLocalVarDeclStmt(LocalVarDeclStmtContext ctx) {
-        if (ctx != null && ctx.localVarDecl() != null) {
-            return visit(ctx.localVarDecl());
-        }
-        return null;
-    }
-    
-    @Override
-    public Type visitLocalVarDecl(LocalVarDeclContext ctx) {
-        Type type = visit(ctx.type());
-        boolean isFinal = ctx.FINAL() != null;
-        
-        for (var declarator : ctx.varDeclarator()) {
-            String varName = declarator.ID().getText();
-            Type varType = type;
-            
-            // Handle array dimensions
-            int arrayDims = 0;
-            for (int i = 1; i < declarator.getChildCount(); i++) {
-                if (declarator.getChild(i).getText().equals("[")) {
-                    arrayDims++;
-                }
-            }
-            
-            for (int i = 0; i < arrayDims; i++) {
-                varType = new ArrayType(varType);
-            }
-            
-            // Create variable symbol
-            VariableSymbol var = new VariableSymbol(varName, varType);
-            var.setFinal(isFinal);
-            
-            // Add to current scope
-            if (!currentScope.define(var)) {
-                addError(declarator.ID().getSymbol(),
-                    "Variable '" + varName + "' is already defined in this scope",
-                    SemanticError.ErrorType.DUPLICATE_VARIABLE);
-            }
-            
-            // Check initializer
-            if (declarator.initializer() != null) {
-                Type initType = visit(declarator.initializer());
-                
-                if (!TypeCompatibility.isAssignmentCompatible(varType, initType)) {
-                    addError(declarator.initializer().getStart(),
-                        "Cannot assign " + initType.getName() + " to " + varType.getName(),
-                        SemanticError.ErrorType.TYPE_MISMATCH);
-                } else {
-                    var.setInitialized(true);
-                    initializedVars.add(var);
-                }
-            } else if (isFinal) {
-                addError(declarator.ID().getSymbol(),
-                    "Final variable '" + varName + "' must be initialized",
-                    SemanticError.ErrorType.UNINITIALIZED_FINAL);
-            }
+        // Update return tracking
+        if (!returnTrackers.isEmpty()) {
+            ReturnTracker tracker = returnTrackers.peek();
+            tracker.addReturn(ctx.RETURN().getSymbol(), returnType, loopDepth > 0);
         }
         
         return null;
@@ -443,16 +601,16 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
             return null;
         }
         
-        // Check if lvalue is final
+        // Check if lvalue is assignable
         if (ctx.lvalue() instanceof VarLvalueContext) {
-            String varName = ((VarLvalueContext) ctx.lvalue()).ID().getText();
+            VarLvalueContext varLvalue = (VarLvalueContext) ctx.lvalue();
+            String varName = varLvalue.ID().getText();
             Symbol symbol = currentScope.resolve(varName);
             
             if (symbol instanceof VariableSymbol) {
                 VariableSymbol var = (VariableSymbol) symbol;
-                
                 if (var.isFinal() && var.isInitialized()) {
-                    addError(ctx.lvalue().getStart(),
+                    addError(varLvalue.ID().getSymbol(),
                         "Cannot assign to final variable '" + varName + "'",
                         SemanticError.ErrorType.FINAL_VARIABLE_ASSIGNMENT);
                 } else {
@@ -474,7 +632,7 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     
     @Override
     public Type visitCompoundAssignStmt(CompoundAssignStmtContext ctx) {
-        if (ctx == null || ctx.lvalue() == null || ctx.expr() == null) {
+        if (ctx == null || ctx.lvalue() == null || ctx.expr() == null || ctx.op == null) {
             return null;
         }
         
@@ -519,354 +677,8 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     
     @Override
     public Type visitExprStmt(ExprStmtContext ctx) {
-        if (ctx != null && ctx.expr() != null) {
-            visit(ctx.expr());
-        }
-        return null;
-    }
-    
-    @Override
-    public Type visitIfStmt(IfStmtContext ctx) {
         if (ctx == null || ctx.expr() == null) return null;
-        
-        // Check condition
-        Type condType = visit(ctx.expr());
-        if (condType != null && !condType.equals(PrimitiveType.BOOLEAN)) {
-            addError(ctx.expr().getStart(),
-                "If condition must be boolean, found " + condType.getName(),
-                SemanticError.ErrorType.TYPE_MISMATCH);
-        }
-        
-        // Track initialization state
-        Set<VariableSymbol> beforeIf = new HashSet<>(initializedVars);
-        
-        // Visit then branch
-        if (ctx.statement(0) != null) {
-            visit(ctx.statement(0));
-        }
-        
-        Set<VariableSymbol> afterThen = new HashSet<>(initializedVars);
-        
-        // Reset to before if
-        initializedVars = new HashSet<>(beforeIf);
-        
-        // Visit else branch if present
-        if (ctx.ELSE() != null && ctx.statement(1) != null) {
-            visit(ctx.statement(1));
-            
-            // Variables are definitely initialized only if initialized in both branches
-            initializedVars.retainAll(afterThen);
-        } else {
-            // No else branch - only variables initialized before if are definitely initialized
-            initializedVars = beforeIf;
-        }
-        
-        return null;
-    }
-    
-    @Override
-    public Type visitWhileStmt(WhileStmtContext ctx) {
-        if (ctx == null || ctx.expr() == null) return null;
-        
-        // Check condition
-        Type condType = visit(ctx.expr());
-        if (condType != null && !condType.equals(PrimitiveType.BOOLEAN)) {
-            addError(ctx.expr().getStart(),
-                "While condition must be boolean, found " + condType.getName(),
-                SemanticError.ErrorType.TYPE_MISMATCH);
-        }
-        
-        // Enter loop context
-        loopDepth++;
-        
-        // Variables initialized in loop are not definitely initialized after
-        Set<VariableSymbol> beforeLoop = new HashSet<>(initializedVars);
-        
-        if (ctx.statement() != null) {
-            visit(ctx.statement());
-        }
-        
-        // Restore initialization state
-        initializedVars = beforeLoop;
-        
-        loopDepth--;
-        return null;
-    }
-    
-    @Override
-    public Type visitForStmt(ForStmtContext ctx) {
-        if (ctx == null) return null;
-        
-        // Create new scope for loop variable
-        Scope previousScope = currentScope;
-        currentScope = new Scope(currentScope);
-        
-        // Visit for init
-        if (ctx.forInit() != null) {
-            visit(ctx.forInit());
-        }
-        
-        // Check condition
-        if (ctx.expr() != null) {
-            Type condType = visit(ctx.expr());
-            if (condType != null && !condType.equals(PrimitiveType.BOOLEAN)) {
-                addError(ctx.expr().getStart(),
-                    "For condition must be boolean, found " + condType.getName(),
-                    SemanticError.ErrorType.TYPE_MISMATCH);
-            }
-        }
-        
-        // Enter loop context
-        loopDepth++;
-        
-        // Variables initialized in loop are not definitely initialized after
-        Set<VariableSymbol> beforeLoop = new HashSet<>(initializedVars);
-        
-        // Visit body
-        if (ctx.statement() != null) {
-            visit(ctx.statement());
-        }
-        
-        // Visit update
-        if (ctx.forUpdate() != null) {
-            visit(ctx.forUpdate());
-        }
-        
-        // Restore state
-        initializedVars = beforeLoop;
-        loopDepth--;
-        currentScope = previousScope;
-        
-        return null;
-    }
-    
-    @Override
-    public Type visitForEachStmt(ForEachStmtContext ctx) {
-        if (ctx == null || ctx.type() == null || ctx.ID() == null || ctx.expr() == null) {
-            return null;
-        }
-        
-        // Create new scope for loop variable
-        Scope previousScope = currentScope;
-        currentScope = new Scope(currentScope);
-        
-        // Get element type
-        Type elementType = visit(ctx.type());
-        boolean isFinal = ctx.FINAL() != null;
-        
-        // Create loop variable
-        String varName = ctx.ID().getText();
-        VariableSymbol loopVar = new VariableSymbol(varName, elementType);
-        loopVar.setFinal(isFinal);
-        loopVar.setInitialized(true);
-        
-        if (!currentScope.define(loopVar)) {
-            addError(ctx.ID().getSymbol(),
-                "Variable '" + varName + "' is already defined",
-                SemanticError.ErrorType.DUPLICATE_VARIABLE);
-        }
-        
-        // Check iterable expression
-        Type iterableType = visit(ctx.expr());
-        if (iterableType != null) {
-            if (!(iterableType instanceof ArrayType)) {
-                addError(ctx.expr().getStart(),
-                    "For-each requires array type, found " + iterableType.getName(),
-                    SemanticError.ErrorType.TYPE_MISMATCH);
-            } else {
-                ArrayType arrayType = (ArrayType) iterableType;
-                if (!TypeCompatibility.isAssignmentCompatible(elementType, arrayType.getElementType())) {
-                    addError(ctx.ID().getSymbol(),
-                        "Cannot iterate over " + arrayType.getName() + " with element type " + 
-                        elementType.getName(),
-                        SemanticError.ErrorType.TYPE_MISMATCH);
-                }
-            }
-        }
-        
-        // Enter loop context
-        loopDepth++;
-        initializedVars.add(loopVar);
-        
-        // Visit body
-        if (ctx.statement() != null) {
-            visit(ctx.statement());
-        }
-        
-        // Restore state
-        loopDepth--;
-        currentScope = previousScope;
-        
-        return null;
-    }
-    
-    @Override
-    public Type visitDoWhileStmt(DoWhileStmtContext ctx) {
-        if (ctx == null || ctx.expr() == null) return null;
-        
-        // Enter loop context
-        loopDepth++;
-        
-        // Visit body
-        if (ctx.statement() != null) {
-            visit(ctx.statement());
-        }
-        
-        // Check condition
-        Type condType = visit(ctx.expr());
-        if (condType != null && !condType.equals(PrimitiveType.BOOLEAN)) {
-            addError(ctx.expr().getStart(),
-                "Do-while condition must be boolean, found " + condType.getName(),
-                SemanticError.ErrorType.TYPE_MISMATCH);
-        }
-        
-        loopDepth--;
-        return null;
-    }
-    
-    @Override
-    public Type visitSwitchStmt(SwitchStmtContext ctx) {
-        if (ctx == null || ctx.expr() == null) return null;
-        
-        Type switchType = visit(ctx.expr());
-        
-        if (switchType != null && 
-            !switchType.equals(PrimitiveType.INT) && 
-            !switchType.equals(PrimitiveType.CHAR) &&
-            !(switchType instanceof ClassType)) { // For enums
-            addError(ctx.expr().getStart(),
-                "Switch expression must be int, char, or enum type, found " + switchType.getName(),
-                SemanticError.ErrorType.TYPE_MISMATCH);
-        }
-        
-        // Enter switch context (for break statements)
-        loopDepth++; // Reuse loop depth for switch
-        
-        // Check cases
-        Set<String> caseValues = new HashSet<>();
-        boolean hasDefault = false;
-        
-        for (var switchCase : ctx.switchCase()) {
-            // Check for duplicate case values
-            if (switchCase.CASE() != null) {
-                for (var label : switchCase.switchLabel()) {
-                    String labelValue = label.getText();
-                    if (!caseValues.add(labelValue)) {
-                        addError(label.getStart(),
-                            "Duplicate case value: " + labelValue,
-                            SemanticError.ErrorType.DUPLICATE_CASE);
-                    }
-                    
-                    // Type check case label
-                    if (label.INT_LITERAL() != null && !switchType.equals(PrimitiveType.INT)) {
-                        addError(label.getStart(),
-                            "Case value type does not match switch expression type",
-                            SemanticError.ErrorType.TYPE_MISMATCH);
-                    } else if (label.CHAR_LITERAL() != null && !switchType.equals(PrimitiveType.CHAR)) {
-                        addError(label.getStart(),
-                            "Case value type does not match switch expression type",
-                            SemanticError.ErrorType.TYPE_MISMATCH);
-                    }
-                }
-            } else if (switchCase.DEFAULT() != null) {
-                if (hasDefault) {
-                    addError(switchCase.DEFAULT().getSymbol(),
-                        "Duplicate default case",
-                        SemanticError.ErrorType.DUPLICATE_CASE);
-                }
-                hasDefault = true;
-            }
-            
-            // Visit case statements
-            for (var stmt : switchCase.statement()) {
-                visit(stmt);
-            }
-        }
-        
-        loopDepth--;
-        return null;
-    }
-    
-    @Override
-    public Type visitReturnStmt(ReturnStmtContext ctx) {
-        if (currentMethod == null) {
-            addError(ctx.RETURN().getSymbol(),
-                "Return statement outside of method",
-                SemanticError.ErrorType.INVALID_RETURN);
-            return null;
-        }
-        
-        Type expectedType = currentMethod.getReturnType();
-        
-        if (ctx.expr() != null) {
-            Type actualType = visit(ctx.expr());
-            
-            if (expectedType.equals(PrimitiveType.VOID)) {
-                addError(ctx.RETURN().getSymbol(),
-                    "Cannot return value from void method",
-                    SemanticError.ErrorType.TYPE_MISMATCH);
-            } else if (!TypeCompatibility.isAssignmentCompatible(expectedType, actualType)) {
-                addError(ctx.expr().getStart(),
-                    "Return type mismatch: expected " + expectedType.getName() + 
-                    " but found " + actualType.getName(),
-                    SemanticError.ErrorType.TYPE_MISMATCH);
-            }
-        } else {
-            if (!expectedType.equals(PrimitiveType.VOID)) {
-                addError(ctx.RETURN().getSymbol(),
-                    "Missing return value: expected " + expectedType.getName(),
-                    SemanticError.ErrorType.MISSING_RETURN);
-            }
-        }
-        
-        // Mark that we have a return
-        if (!returnTrackers.isEmpty()) {
-            returnTrackers.peek().hasReturn = true;
-        }
-        
-        return null;
-    }
-    
-    @Override
-    public Type visitBreakStmt(BreakStmtContext ctx) {
-        if (loopDepth == 0) {
-            addError(ctx.BREAK().getSymbol(),
-                "Break statement outside of loop or switch",
-                SemanticError.ErrorType.INVALID_BREAK_CONTINUE);
-        }
-        return null;
-    }
-    
-    @Override
-    public Type visitContinueStmt(ContinueStmtContext ctx) {
-        if (loopDepth == 0) {
-            addError(ctx.CONTINUE().getSymbol(),
-                "Continue statement outside of loop",
-                SemanticError.ErrorType.INVALID_BREAK_CONTINUE);
-        }
-        return null;
-    }
-    
-    @Override
-    public Type visitBlockStmt(BlockStmtContext ctx) {
-        if (ctx != null && ctx.block() != null) {
-            return visit(ctx.block());
-        }
-        return null;
-    }
-    
-    @Override
-    public Type visitPrintStmt(PrintStmtContext ctx) {
-        if (ctx != null && ctx.expr() != null) {
-            visit(ctx.expr());
-        }
-        return null;
-    }
-    
-    @Override
-    public Type visitEmptyStmt(EmptyStmtContext ctx) {
-        // Empty statement - nothing to do
-        return null;
+        return visit(ctx.expr());
     }
     
     // Lvalue visitors
@@ -875,19 +687,19 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     public Type visitVarLvalue(VarLvalueContext ctx) {
         if (ctx == null || ctx.ID() == null) return ErrorType.getInstance();
         
-        String varName = ctx.ID().getText();
-        Symbol symbol = currentScope.resolve(varName);
+        String name = ctx.ID().getText();
+        Symbol symbol = currentScope.resolve(name);
         
         if (symbol == null) {
             addError(ctx.ID().getSymbol(),
-                "Variable '" + varName + "' is not defined",
+                "Variable '" + name + "' is not defined",
                 SemanticError.ErrorType.UNDEFINED_VARIABLE);
             return ErrorType.getInstance();
         }
         
         if (!(symbol instanceof VariableSymbol)) {
             addError(ctx.ID().getSymbol(),
-                "'" + varName + "' is not a variable",
+                "'" + name + "' is not a variable",
                 SemanticError.ErrorType.TYPE_MISMATCH);
             return ErrorType.getInstance();
         }
@@ -896,50 +708,18 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     }
     
     @Override
-    public Type visitArrayElementLvalue(ArrayElementLvalueContext ctx) {
-        if (ctx == null || ctx.lvalue() == null || ctx.expr() == null) {
-            return ErrorType.getInstance();
-        }
-        
-        Type arrayType = visit(ctx.lvalue());
-        Type indexType = visit(ctx.expr());
-        
-        if (arrayType == null || arrayType instanceof ErrorType) {
-            return ErrorType.getInstance();
-        }
-        
-        if (!(arrayType instanceof ArrayType)) {
-            addError(ctx.lvalue().getStart(),
-                "Cannot index non-array type " + arrayType.getName(),
-                SemanticError.ErrorType.TYPE_MISMATCH);
-            return ErrorType.getInstance();
-        }
-        
-        if (indexType != null && !indexType.equals(PrimitiveType.INT) && 
-            !(indexType instanceof ErrorType)) {
-            addError(ctx.expr().getStart(),
-                "Array index must be int, found " + indexType.getName(),
-                SemanticError.ErrorType.TYPE_MISMATCH);
-        }
-        
-        return ((ArrayType) arrayType).getElementType();
-    }
-    
-    @Override
     public Type visitFieldLvalue(FieldLvalueContext ctx) {
-        if (ctx == null || ctx.lvalue() == null || ctx.ID() == null) {
+        if (ctx == null || ctx.expr() == null || ctx.ID() == null) {
             return ErrorType.getInstance();
         }
         
-        Type objectType = visit(ctx.lvalue());
-        String fieldName = ctx.ID().getText();
-        
+        Type objectType = visit(ctx.expr());
         if (objectType == null || objectType instanceof ErrorType) {
             return ErrorType.getInstance();
         }
         
         if (!(objectType instanceof ClassType)) {
-            addError(ctx.lvalue().getStart(),
+            addError(ctx.expr().getStart(),
                 "Cannot access field of non-class type " + objectType.getName(),
                 SemanticError.ErrorType.TYPE_MISMATCH);
             return ErrorType.getInstance();
@@ -952,6 +732,7 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
             return ErrorType.getInstance();
         }
         
+        String fieldName = ctx.ID().getText();
         Symbol field = classSymbol.resolveMember(fieldName);
         
         if (field == null) {
@@ -969,6 +750,35 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         }
         
         return field.getType();
+    }
+    
+    @Override
+    public Type visitArrayLvalue(ArrayLvalueContext ctx) {
+        if (ctx == null || ctx.expr(0) == null || ctx.expr(1) == null) {
+            return ErrorType.getInstance();
+        }
+        
+        Type arrayType = visit(ctx.expr(0));
+        Type indexType = visit(ctx.expr(1));
+        
+        if (arrayType == null || arrayType instanceof ErrorType) {
+            return ErrorType.getInstance();
+        }
+        
+        if (!(arrayType instanceof ArrayType)) {
+            addError(ctx.expr(0).getStart(),
+                "Cannot index non-array type " + arrayType.getName(),
+                SemanticError.ErrorType.TYPE_MISMATCH);
+            return ErrorType.getInstance();
+        }
+        
+        if (indexType != null && !indexType.equals(PrimitiveType.INT)) {
+            addError(ctx.expr(1).getStart(),
+                "Array index must be int, found " + indexType.getName(),
+                SemanticError.ErrorType.TYPE_MISMATCH);
+        }
+        
+        return ((ArrayType) arrayType).getElementType();
     }
     
     // Expression visitors
@@ -1126,6 +936,79 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     }
     
     @Override
+    public Type visitFuncCall(FuncCallContext ctx) {
+        if (ctx == null || ctx.ID() == null) return ErrorType.getInstance();
+        
+        String funcName = ctx.ID().getText();
+        Symbol symbol = currentScope.resolve(funcName);
+        
+        if (symbol == null) {
+            addError(ctx.ID().getSymbol(),
+                "Function '" + funcName + "' is not defined",
+                SemanticError.ErrorType.UNDEFINED_FUNCTION);
+            return ErrorType.getInstance();
+        }
+        
+        if (!(symbol instanceof FunctionSymbol)) {
+            addError(ctx.ID().getSymbol(),
+                "'" + funcName + "' is not a function",
+                SemanticError.ErrorType.TYPE_MISMATCH);
+            return ErrorType.getInstance();
+        }
+        
+        FunctionSymbol function = (FunctionSymbol) symbol;
+        
+        // Check static context for methods
+        if (function instanceof MethodSymbol) {
+            MethodSymbol method = (MethodSymbol) function;
+            if (inStaticContext && !method.isStatic() && currentClass != null) {
+                if (currentClass.getMemberScope().resolveLocal(funcName) != null) {
+                    addError(ctx.ID().getSymbol(),
+                        "Cannot call instance method '" + funcName + "' from static context",
+                        SemanticError.ErrorType.STATIC_CONTEXT_ERROR);
+                }
+            }
+        }
+        
+        // Get argument types
+        List<Type> argTypes = new ArrayList<>();
+        if (ctx.argList() != null) {
+            for (var expr : ctx.argList().expr()) {
+                Type argType = visit(expr);
+                if (argType != null) {
+                    argTypes.add(argType);
+                }
+            }
+        }
+        
+        // Check parameter count
+        if (argTypes.size() != function.getParameters().size()) {
+            addError(ctx.ID().getSymbol(),
+                "Function '" + funcName + "' expects " + function.getParameters().size() + 
+                " arguments but found " + argTypes.size(),
+                SemanticError.ErrorType.ARGUMENT_MISMATCH);
+            return function.getReturnType();
+        }
+        
+        // Check parameter types
+        for (int i = 0; i < argTypes.size(); i++) {
+            Type paramType = function.getParameters().get(i).getType();
+            Type argType = argTypes.get(i);
+            
+            if (!TypeCompatibility.isAssignmentCompatible(paramType, argType)) {
+                ParseTree argExpr = ctx.argList().expr(i);
+                Token argToken = argExpr != null ? argExpr.getStart() : ctx.ID().getSymbol();
+                addError(argToken,
+                    "Argument " + (i + 1) + ": cannot convert " + argType.getName() + 
+                    " to " + paramType.getName(),
+                    SemanticError.ErrorType.TYPE_MISMATCH);
+            }
+        }
+        
+        return function.getReturnType();
+    }
+    
+    @Override
     public Type visitArrayAccess(ArrayAccessContext ctx) {
         if (ctx == null || ctx.expr(0) == null || ctx.expr(1) == null) {
             return ErrorType.getInstance();
@@ -1145,8 +1028,7 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
             return ErrorType.getInstance();
         }
         
-        if (indexType != null && !indexType.equals(PrimitiveType.INT) && 
-            !(indexType instanceof ErrorType)) {
+        if (indexType != null && !indexType.equals(PrimitiveType.INT)) {
             addError(ctx.expr(1).getStart(),
                 "Array index must be int, found " + indexType.getName(),
                 SemanticError.ErrorType.TYPE_MISMATCH);
@@ -1155,483 +1037,30 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         return ((ArrayType) arrayType).getElementType();
     }
     
-    // Binary operator expressions
-    
     @Override
-    public Type visitMulDivMod(MulDivModContext ctx) {
-        if (ctx == null || ctx.expr(0) == null || ctx.expr(1) == null) {
+    public Type visitNewExpr(NewExprContext ctx) {
+        if (ctx == null || ctx.classType() == null || ctx.classType().ID() == null) {
             return ErrorType.getInstance();
         }
         
-        Type left = visit(ctx.expr(0));
-        Type right = visit(ctx.expr(1));
+        String className = ctx.classType().ID().getText();
+        Symbol symbol = globalScope.resolve(className);
         
-        if (left == null || right == null) {
+        if (symbol == null) {
+            addError(ctx.classType().ID().getSymbol(),
+                "Class '" + className + "' is not defined",
+                SemanticError.ErrorType.UNDEFINED_CLASS);
             return ErrorType.getInstance();
         }
         
-        // Both operands must be numeric
-        if ((!left.equals(PrimitiveType.INT) && !left.equals(PrimitiveType.FLOAT)) ||
-            (!right.equals(PrimitiveType.INT) && !right.equals(PrimitiveType.FLOAT))) {
-            addError(ctx.op,
-                "Operator '" + ctx.op.getText() + "' requires numeric operands",
+        if (!(symbol instanceof ClassSymbol)) {
+            addError(ctx.classType().ID().getSymbol(),
+                "'" + className + "' is not a class",
                 SemanticError.ErrorType.TYPE_MISMATCH);
             return ErrorType.getInstance();
         }
         
-        // Result type is float if either operand is float
-        if (left.equals(PrimitiveType.FLOAT) || right.equals(PrimitiveType.FLOAT)) {
-            return PrimitiveType.FLOAT;
-        }
-        return PrimitiveType.INT;
-    }
-    
-    @Override
-    public Type visitAddSub(AddSubContext ctx) {
-        if (ctx == null || ctx.expr(0) == null || ctx.expr(1) == null) {
-            return ErrorType.getInstance();
-        }
-        
-        Type left = visit(ctx.expr(0));
-        Type right = visit(ctx.expr(1));
-        String op = ctx.op.getText();
-        
-        if (left == null || right == null) {
-            return ErrorType.getInstance();
-        }
-        
-        // String concatenation with +
-        if (op.equals("+") && (left.equals(PrimitiveType.STRING) || right.equals(PrimitiveType.STRING))) {
-            return PrimitiveType.STRING;
-        }
-        
-        // Both operands must be numeric
-        if ((!left.equals(PrimitiveType.INT) && !left.equals(PrimitiveType.FLOAT)) ||
-            (!right.equals(PrimitiveType.INT) && !right.equals(PrimitiveType.FLOAT))) {
-            addError(ctx.op,
-                "Operator '" + op + "' requires numeric operands (or string concatenation with +)",
-                SemanticError.ErrorType.TYPE_MISMATCH);
-            return ErrorType.getInstance();
-        }
-        
-        // Result type is float if either operand is float
-        if (left.equals(PrimitiveType.FLOAT) || right.equals(PrimitiveType.FLOAT)) {
-            return PrimitiveType.FLOAT;
-        }
-        return PrimitiveType.INT;
-    }
-    
-    @Override
-    public Type visitRelational(RelationalContext ctx) {
-        if (ctx == null || ctx.expr(0) == null || ctx.expr(1) == null) {
-            return ErrorType.getInstance();
-        }
-        
-        Type left = visit(ctx.expr(0));
-        Type right = visit(ctx.expr(1));
-        
-        if (left == null || right == null) {
-            return ErrorType.getInstance();
-        }
-        
-        // Both operands must be numeric
-        if ((!left.equals(PrimitiveType.INT) && !left.equals(PrimitiveType.FLOAT)) ||
-            (!right.equals(PrimitiveType.INT) && !right.equals(PrimitiveType.FLOAT))) {
-            addError(ctx.op,
-                "Relational operator '" + ctx.op.getText() + "' requires numeric operands",
-                SemanticError.ErrorType.TYPE_MISMATCH);
-            return ErrorType.getInstance();
-        }
-        
-        return PrimitiveType.BOOLEAN;
-    }
-    
-    @Override
-    public Type visitEquality(EqualityContext ctx) {
-        if (ctx == null || ctx.expr(0) == null || ctx.expr(1) == null) {
-            return ErrorType.getInstance();
-        }
-        
-        Type left = visit(ctx.expr(0));
-        Type right = visit(ctx.expr(1));
-        
-        if (left == null || right == null) {
-            return ErrorType.getInstance();
-        }
-        
-        // Check if types are comparable
-        if (!TypeCompatibility.areComparable(left, right)) {
-            addError(ctx.op,
-                "Cannot compare " + left.getName() + " and " + right.getName(),
-                SemanticError.ErrorType.TYPE_MISMATCH);
-        }
-        
-        return PrimitiveType.BOOLEAN;
-    }
-    
-    @Override
-    public Type visitAnd(AndContext ctx) {
-        if (ctx == null || ctx.expr(0) == null || ctx.expr(1) == null) {
-            return ErrorType.getInstance();
-        }
-        
-        Type left = visit(ctx.expr(0));
-        Type right = visit(ctx.expr(1));
-        
-        if (left != null && !left.equals(PrimitiveType.BOOLEAN)) {
-            addError(ctx.expr(0).getStart(),
-                "Left operand of && must be boolean, found " + left.getName(),
-                SemanticError.ErrorType.TYPE_MISMATCH);
-        }
-        
-        if (right != null && !right.equals(PrimitiveType.BOOLEAN)) {
-            addError(ctx.expr(1).getStart(),
-                "Right operand of && must be boolean, found " + right.getName(),
-                SemanticError.ErrorType.TYPE_MISMATCH);
-        }
-        
-        return PrimitiveType.BOOLEAN;
-    }
-    
-    @Override
-    public Type visitOr(OrContext ctx) {
-        if (ctx == null || ctx.expr(0) == null || ctx.expr(1) == null) {
-            return ErrorType.getInstance();
-        }
-        
-        Type left = visit(ctx.expr(0));
-        Type right = visit(ctx.expr(1));
-        
-        if (left != null && !left.equals(PrimitiveType.BOOLEAN)) {
-            addError(ctx.expr(0).getStart(),
-                "Left operand of || must be boolean, found " + left.getName(),
-                SemanticError.ErrorType.TYPE_MISMATCH);
-        }
-        
-        if (right != null && !right.equals(PrimitiveType.BOOLEAN)) {
-            addError(ctx.expr(1).getStart(),
-                "Right operand of || must be boolean, found " + right.getName(),
-                SemanticError.ErrorType.TYPE_MISMATCH);
-        }
-        
-        return PrimitiveType.BOOLEAN;
-    }
-    
-    // Other expression visitors
-    
-    @Override
-    public Type visitUnaryExpr(UnaryExprContext ctx) {
-        if (ctx == null || ctx.expr() == null) {
-            return ErrorType.getInstance();
-        }
-        
-        Type operandType = visit(ctx.expr());
-        String op = ctx.op.getText();
-        
-        if (operandType == null || operandType instanceof ErrorType) {
-            return ErrorType.getInstance();
-        }
-        
-        switch (op) {
-            case "+":
-            case "-":
-                if (!operandType.equals(PrimitiveType.INT) && !operandType.equals(PrimitiveType.FLOAT)) {
-                    addError(ctx.op,
-                        "Unary " + op + " requires numeric operand, found " + operandType.getName(),
-                        SemanticError.ErrorType.TYPE_MISMATCH);
-                    return ErrorType.getInstance();
-                }
-                return operandType;
-                
-            case "!":
-                if (!operandType.equals(PrimitiveType.BOOLEAN)) {
-                    addError(ctx.op,
-                        "Unary ! requires boolean operand, found " + operandType.getName(),
-                        SemanticError.ErrorType.TYPE_MISMATCH);
-                    return ErrorType.getInstance();
-                }
-                return PrimitiveType.BOOLEAN;
-                
-            case "++":
-            case "--":
-                if (!operandType.equals(PrimitiveType.INT) && !operandType.equals(PrimitiveType.FLOAT)) {
-                    addError(ctx.op,
-                        op + " requires numeric operand, found " + operandType.getName(),
-                        SemanticError.ErrorType.TYPE_MISMATCH);
-                    return ErrorType.getInstance();
-                }
-                
-                // Check if operand is an lvalue
-                if (!(ctx.expr() instanceof VarRefContext || 
-                      ctx.expr() instanceof FieldAccessContext || 
-                      ctx.expr() instanceof ArrayAccessContext)) {
-                    addError(ctx.expr().getStart(),
-                        op + " requires an lvalue",
-                        SemanticError.ErrorType.TYPE_MISMATCH);
-                }
-                return operandType;
-                
-            default:
-                return ErrorType.getInstance();
-        }
-    }
-    
-    @Override
-    public Type visitPostIncDec(PostIncDecContext ctx) {
-        if (ctx == null || ctx.expr() == null) {
-            return ErrorType.getInstance();
-        }
-        
-        Type operandType = visit(ctx.expr());
-        String op = ctx.op.getText();
-        
-        if (operandType == null || operandType instanceof ErrorType) {
-            return operandType;
-        }
-        
-        if (!operandType.equals(PrimitiveType.INT) && !operandType.equals(PrimitiveType.FLOAT)) {
-            addError(ctx.op,
-                op + " requires numeric operand, found " + operandType.getName(),
-                SemanticError.ErrorType.TYPE_MISMATCH);
-            return ErrorType.getInstance();
-        }
-        
-        // Check if operand is an lvalue
-        if (!(ctx.expr() instanceof VarRefContext || 
-              ctx.expr() instanceof FieldAccessContext || 
-              ctx.expr() instanceof ArrayAccessContext)) {
-            addError(ctx.expr().getStart(),
-                op + " requires an lvalue",
-                SemanticError.ErrorType.TYPE_MISMATCH);
-        }
-        
-        return operandType;
-    }
-    
-    @Override
-    public Type visitCastExpr(CastExprContext ctx) {
-        if (ctx == null || ctx.type() == null || ctx.expr() == null) {
-            return ErrorType.getInstance();
-        }
-        
-        Type targetType = visit(ctx.type());
-        Type exprType = visit(ctx.expr());
-        
-        if (targetType == null || exprType == null) {
-            return ErrorType.getInstance();
-        }
-        
-        // Check if cast is valid
-        if (!TypeCompatibility.canCast(exprType, targetType)) {
-            addError(ctx.type().getStart(),
-                "Cannot cast " + exprType.getName() + " to " + targetType.getName(),
-                SemanticError.ErrorType.TYPE_MISMATCH);
-            return ErrorType.getInstance();
-        }
-        
-        return targetType;
-    }
-    
-    @Override
-    public Type visitInstanceOfExpr(InstanceOfExprContext ctx) {
-        if (ctx == null || ctx.expr() == null || ctx.classType() == null) {
-            return ErrorType.getInstance();
-        }
-        
-        Type exprType = visit(ctx.expr());
-        Type classType = visit(ctx.classType());
-        
-        if (exprType == null || classType == null) {
-            return ErrorType.getInstance();
-        }
-        
-        // Expression must be a reference type
-        if (!(exprType instanceof ClassType || exprType instanceof ArrayType || 
-              exprType instanceof NullType)) {
-            addError(ctx.expr().getStart(),
-                "instanceof requires reference type, found " + exprType.getName(),
-                SemanticError.ErrorType.TYPE_MISMATCH);
-        }
-        
-        // Right side must be a class type
-        if (!(classType instanceof ClassType)) {
-            addError(ctx.classType().getStart(),
-                "Right side of instanceof must be a class type",
-                SemanticError.ErrorType.TYPE_MISMATCH);
-        }
-        
-        return PrimitiveType.BOOLEAN;
-    }
-    
-    @Override
-    public Type visitTernary(TernaryContext ctx) {
-        if (ctx == null || ctx.expr(0) == null || ctx.expr(1) == null || ctx.expr(2) == null) {
-            return ErrorType.getInstance();
-        }
-        
-        Type condType = visit(ctx.expr(0));
-        Type thenType = visit(ctx.expr(1));
-        Type elseType = visit(ctx.expr(2));
-        
-        if (condType != null && !condType.equals(PrimitiveType.BOOLEAN)) {
-            addError(ctx.expr(0).getStart(),
-                "Ternary condition must be boolean, found " + condType.getName(),
-                SemanticError.ErrorType.TYPE_MISMATCH);
-        }
-        
-        if (thenType == null || elseType == null) {
-            return ErrorType.getInstance();
-        }
-        
-        // Result type is the common type of then and else branches
-        if (thenType.equals(elseType)) {
-            return thenType;
-        }
-        
-        // Try to find common type
-        if (thenType instanceof PrimitiveType && elseType instanceof PrimitiveType) {
-            PrimitiveType primThen = (PrimitiveType) thenType;
-            PrimitiveType primElse = (PrimitiveType) elseType;
-            
-            if (TypeCompatibility.canPromote(primThen, primElse)) {
-                return primElse;
-            } else if (TypeCompatibility.canPromote(primElse, primThen)) {
-                return primThen;
-            }
-        }
-        
-        addError(ctx.expr(1).getStart(),
-            "Incompatible types in ternary expression: " + thenType.getName() + 
-            " and " + elseType.getName(),
-            SemanticError.ErrorType.TYPE_MISMATCH);
-        
-        return ErrorType.getInstance();
-    }
-    
-    @Override
-    public Type visitParen(ParenContext ctx) {
-        if (ctx != null && ctx.expr() != null) {
-            return visit(ctx.expr());
-        }
-        return ErrorType.getInstance();
-    }
-    
-    // Array creation expressions
-    
-    @Override
-    public Type visitNewPrimitiveArray(NewPrimitiveArrayContext ctx) {
-        if (ctx == null || ctx.primitiveType() == null) {
-            return ErrorType.getInstance();
-        }
-        
-        Type elementType = visit(ctx.primitiveType());
-        
-        // Check dimension expressions
-        for (var expr : ctx.expr()) {
-            Type dimType = visit(expr);
-            if (dimType != null && !dimType.equals(PrimitiveType.INT)) {
-                addError(expr.getStart(),
-                    "Array dimension must be int, found " + dimType.getName(),
-                    SemanticError.ErrorType.TYPE_MISMATCH);
-            }
-        }
-        
-        // Build array type with all dimensions
-        Type arrayType = elementType;
-        int totalDims = ctx.expr().size() + (ctx.getChildCount() - ctx.expr().size() - 2) / 2;
-        for (int i = 0; i < totalDims; i++) {
-            arrayType = new ArrayType(arrayType);
-        }
-        
-        return arrayType;
-    }
-    
-    @Override
-    public Type visitNewObjectArray(NewObjectArrayContext ctx) {
-        if (ctx == null || ctx.classType() == null) {
-            return ErrorType.getInstance();
-        }
-        
-        Type elementType = visit(ctx.classType());
-        
-        // Check dimension expressions
-        for (var expr : ctx.expr()) {
-            Type dimType = visit(expr);
-            if (dimType != null && !dimType.equals(PrimitiveType.INT)) {
-                addError(expr.getStart(),
-                    "Array dimension must be int, found " + dimType.getName(),
-                    SemanticError.ErrorType.TYPE_MISMATCH);
-            }
-        }
-        
-        // Build array type with all dimensions
-        Type arrayType = elementType;
-        int totalDims = ctx.expr().size() + (ctx.getChildCount() - ctx.expr().size() - 2) / 2;
-        for (int i = 0; i < totalDims; i++) {
-            arrayType = new ArrayType(arrayType);
-        }
-        
-        return arrayType;
-    }
-    
-    @Override
-    public Type visitNewPrimitiveArrayInit(NewPrimitiveArrayInitContext ctx) {
-        if (ctx == null || ctx.primitiveType() == null || ctx.arrayInitializer() == null) {
-            return ErrorType.getInstance();
-        }
-        
-        Type elementType = visit(ctx.primitiveType());
-        Type initType = visit(ctx.arrayInitializer());
-        
-        // Check that initializer type matches
-        Type expectedType = new ArrayType(elementType);
-        if (!initType.equals(expectedType) && !(initType instanceof ErrorType)) {
-            addError(ctx.arrayInitializer().getStart(),
-                "Array initializer type mismatch",
-                SemanticError.ErrorType.TYPE_MISMATCH);
-        }
-        
-        return expectedType;
-    }
-    
-    @Override
-    public Type visitNewObjectArrayInit(NewObjectArrayInitContext ctx) {
-        if (ctx == null || ctx.classType() == null || ctx.arrayInitializer() == null) {
-            return ErrorType.getInstance();
-        }
-        
-        Type elementType = visit(ctx.classType());
-        Type initType = visit(ctx.arrayInitializer());
-        
-        // Check that initializer type matches
-        Type expectedType = new ArrayType(elementType);
-        if (!initType.equals(expectedType) && !(initType instanceof ErrorType)) {
-            addError(ctx.arrayInitializer().getStart(),
-                "Array initializer type mismatch",
-                SemanticError.ErrorType.TYPE_MISMATCH);
-        }
-        
-        return expectedType;
-    }
-    
-    @Override
-    public Type visitNewObject(NewObjectContext ctx) {
-        if (ctx == null || ctx.classType() == null) {
-            return ErrorType.getInstance();
-        }
-        
-        Type classType = visit(ctx.classType());
-        
-        if (!(classType instanceof ClassType)) {
-            return ErrorType.getInstance();
-        }
-        
-        ClassType ct = (ClassType) classType;
-        ClassSymbol classSymbol = ct.getClassSymbol();
-        
-        if (classSymbol == null) {
-            return ErrorType.getInstance();
-        }
+        ClassSymbol classSymbol = (ClassSymbol) symbol;
         
         // Get argument types
         List<Type> argTypes = new ArrayList<>();
@@ -1649,106 +1078,202 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         
         if (constructor == null) {
             StringBuilder sb = new StringBuilder();
-            sb.append("No matching constructor for ").append(classSymbol.getName()).append("(");
+            sb.append("No constructor found for ").append(className).append("(");
             for (int i = 0; i < argTypes.size(); i++) {
                 if (i > 0) sb.append(", ");
                 sb.append(argTypes.get(i).getName());
             }
             sb.append(")");
             
-            addError(ctx.classType().getStart(), sb.toString(), 
+            addError(ctx.NEW().getSymbol(), sb.toString(),
                 SemanticError.ErrorType.UNDEFINED_CONSTRUCTOR);
+        }
+        
+        return classSymbol.getType();
+    }
+    
+    @Override
+    public Type visitNewArrayExpr(NewArrayExprContext ctx) {
+        if (ctx == null || ctx.type() == null || ctx.expr() == null) {
             return ErrorType.getInstance();
         }
         
-        return classType;
+        Type elementType = visit(ctx.type());
+        Type sizeType = visit(ctx.expr());
+        
+        if (elementType == null || elementType instanceof ErrorType) {
+            return ErrorType.getInstance();
+        }
+        
+        if (sizeType != null && !sizeType.equals(PrimitiveType.INT)) {
+            addError(ctx.expr().getStart(),
+                "Array size must be int, found " + sizeType.getName(),
+                SemanticError.ErrorType.TYPE_MISMATCH);
+        }
+        
+        return new ArrayType(elementType);
     }
     
-    // Primary expressions
+    // Binary expression visitors
     
     @Override
-    public Type visitLiteralPrimary(LiteralPrimaryContext ctx) {
-        if (ctx != null && ctx.literal() != null) {
-            return visit(ctx.literal());
+    public Type visitBinaryExpr(BinaryExprContext ctx) {
+        if (ctx == null || ctx.expr(0) == null || ctx.expr(1) == null || ctx.op == null) {
+            return ErrorType.getInstance();
         }
+        
+        Type leftType = visit(ctx.expr(0));
+        Type rightType = visit(ctx.expr(1));
+        
+        if (leftType == null || rightType == null ||
+            leftType instanceof ErrorType || rightType instanceof ErrorType) {
+            return ErrorType.getInstance();
+        }
+        
+        String op = ctx.op.getText();
+        
+        // Arithmetic operators
+        if (op.equals("+") || op.equals("-") || op.equals("*") || op.equals("/") || op.equals("%")) {
+            if (!isNumericType(leftType)) {
+                addError(ctx.expr(0).getStart(),
+                    "Operator '" + op + "' requires numeric type, found " + leftType.getName(),
+                    SemanticError.ErrorType.TYPE_MISMATCH);
+                return ErrorType.getInstance();
+            }
+            
+            if (!isNumericType(rightType)) {
+                addError(ctx.expr(1).getStart(),
+                    "Operator '" + op + "' requires numeric type, found " + rightType.getName(),
+                    SemanticError.ErrorType.TYPE_MISMATCH);
+                return ErrorType.getInstance();
+            }
+            
+            // Result type is float if either operand is float
+            if (leftType.equals(PrimitiveType.FLOAT) || rightType.equals(PrimitiveType.FLOAT)) {
+                return PrimitiveType.FLOAT;
+            }
+            return PrimitiveType.INT;
+        }
+        
+        // Comparison operators
+        if (op.equals("<") || op.equals("<=") || op.equals(">") || op.equals(">=")) {
+            if (!isNumericType(leftType) || !isNumericType(rightType)) {
+                addError(ctx.op,
+                    "Comparison operator '" + op + "' requires numeric types",
+                    SemanticError.ErrorType.TYPE_MISMATCH);
+            }
+            return PrimitiveType.BOOLEAN;
+        }
+        
+        // Equality operators
+        if (op.equals("==") || op.equals("!=")) {
+            if (!TypeCompatibility.areComparable(leftType, rightType)) {
+                addError(ctx.op,
+                    "Cannot compare " + leftType.getName() + " with " + rightType.getName(),
+                    SemanticError.ErrorType.TYPE_MISMATCH);
+            }
+            return PrimitiveType.BOOLEAN;
+        }
+        
+        // Logical operators
+        if (op.equals("&&") || op.equals("||")) {
+            if (!leftType.equals(PrimitiveType.BOOLEAN)) {
+                addError(ctx.expr(0).getStart(),
+                    "Operator '" + op + "' requires boolean type, found " + leftType.getName(),
+                    SemanticError.ErrorType.TYPE_MISMATCH);
+            }
+            
+            if (!rightType.equals(PrimitiveType.BOOLEAN)) {
+                addError(ctx.expr(1).getStart(),
+                    "Operator '" + op + "' requires boolean type, found " + rightType.getName(),
+                    SemanticError.ErrorType.TYPE_MISMATCH);
+            }
+            
+            return PrimitiveType.BOOLEAN;
+        }
+        
         return ErrorType.getInstance();
     }
     
+    // Unary expression visitors
+    
     @Override
-    public Type visitFuncCall(FuncCallContext ctx) {
-        if (ctx == null || ctx.ID() == null) {
+    public Type visitUnaryExpr(UnaryExprContext ctx) {
+        if (ctx == null || ctx.expr() == null || ctx.op == null) {
             return ErrorType.getInstance();
         }
         
-        String funcName = ctx.ID().getText();
-        Symbol symbol = currentScope.resolve(funcName);
-        
-        if (symbol == null) {
-            addError(ctx.ID().getSymbol(),
-                "Function '" + funcName + "' is not defined",
-                SemanticError.ErrorType.UNDEFINED_METHOD);
+        Type exprType = visit(ctx.expr());
+        if (exprType == null || exprType instanceof ErrorType) {
             return ErrorType.getInstance();
         }
         
-        if (!(symbol instanceof MethodSymbol)) {
-            addError(ctx.ID().getSymbol(),
-                "'" + funcName + "' is not a function",
-                SemanticError.ErrorType.TYPE_MISMATCH);
-            return ErrorType.getInstance();
-        }
+        String op = ctx.op.getText();
         
-        MethodSymbol method = (MethodSymbol) symbol;
-        
-        // Check static context
-        if (inStaticContext && !method.isStatic() && currentClass != null) {
-            if (currentClass.getMemberScope().resolveLocal(funcName) != null) {
-                addError(ctx.ID().getSymbol(),
-                    "Cannot call instance method '" + funcName + "' from static context",
-                    SemanticError.ErrorType.STATIC_CONTEXT_ERROR);
-            }
-        }
-        
-        // Get argument types
-        List<Type> argTypes = new ArrayList<>();
-        if (ctx.argList() != null) {
-            for (var expr : ctx.argList().expr()) {
-                Type argType = visit(expr);
-                if (argType != null) {
-                    argTypes.add(argType);
-                }
-            }
-        }
-        
-        // Check parameter count
-        if (argTypes.size() != method.getParameters().size()) {
-            addError(ctx.ID().getSymbol(),
-                "Method '" + funcName + "' expects " + method.getParameters().size() + 
-                " arguments but found " + argTypes.size(),
-                SemanticError.ErrorType.ARGUMENT_MISMATCH);
-            return method.getReturnType();
-        }
-        
-        // Check parameter types
-        for (int i = 0; i < argTypes.size(); i++) {
-            Type paramType = method.getParameters().get(i).getType();
-            Type argType = argTypes.get(i);
-            
-            if (!TypeCompatibility.isAssignmentCompatible(paramType, argType)) {
-                addError(ctx.argList().expr(i).getStart(),
-                    "Argument " + (i + 1) + ": cannot convert " + argType.getName() + 
-                    " to " + paramType.getName(),
+        // Unary minus
+        if (op.equals("-")) {
+            if (!isNumericType(exprType)) {
+                addError(ctx.op,
+                    "Unary minus requires numeric type, found " + exprType.getName(),
                     SemanticError.ErrorType.TYPE_MISMATCH);
+                return ErrorType.getInstance();
             }
+            return exprType;
         }
         
-        return method.getReturnType();
+        // Logical not
+        if (op.equals("!")) {
+            if (!exprType.equals(PrimitiveType.BOOLEAN)) {
+                addError(ctx.op,
+                    "Logical not requires boolean type, found " + exprType.getName(),
+                    SemanticError.ErrorType.TYPE_MISMATCH);
+                return ErrorType.getInstance();
+            }
+            return PrimitiveType.BOOLEAN;
+        }
+        
+        return ErrorType.getInstance();
+    }
+    
+    // Literal visitors
+    
+    @Override
+    public Type visitIntLiteral(IntLiteralContext ctx) {
+        return PrimitiveType.INT;
     }
     
     @Override
-    public Type visitThisRef(ThisRefContext ctx) {
+    public Type visitFloatLiteral(FloatLiteralContext ctx) {
+        return PrimitiveType.FLOAT;
+    }
+    
+    @Override
+    public Type visitStringLiteral(StringLiteralContext ctx) {
+        return PrimitiveType.STRING;
+    }
+    
+    @Override
+    public Type visitBoolLiteral(BoolLiteralContext ctx) {
+        return PrimitiveType.BOOLEAN;
+    }
+    
+    @Override
+    public Type visitCharLiteral(CharLiteralContext ctx) {
+        return PrimitiveType.CHAR;
+    }
+    
+    @Override
+    public Type visitNullLiteral(NullLiteralContext ctx) {
+        return NullType.getInstance();
+    }
+    
+    @Override
+    public Type visitThisExpr(ThisExprContext ctx) {
+        if (ctx == null) return ErrorType.getInstance();
+        
         if (currentClass == null) {
             addError(ctx.THIS().getSymbol(),
-                "'this' cannot be used outside of a class",
+                "'this' cannot be used outside a class",
                 SemanticError.ErrorType.INVALID_THIS);
             return ErrorType.getInstance();
         }
@@ -1764,58 +1289,67 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     }
     
     @Override
-    public Type visitSuperRef(SuperRefContext ctx) {
-        if (currentClass == null) {
-            addError(ctx.SUPER().getSymbol(),
-                "'super' cannot be used outside of a class",
-                SemanticError.ErrorType.INVALID_SUPER);
-            return ErrorType.getInstance();
-        }
-        
-        if (inStaticContext) {
-            addError(ctx.SUPER().getSymbol(),
-                "'super' cannot be used in static context",
-                SemanticError.ErrorType.STATIC_CONTEXT_ERROR);
-            return ErrorType.getInstance();
-        }
-        
-        ClassSymbol superClass = currentClass.getSuperClass();
-        if (superClass == null) {
-            addError(ctx.SUPER().getSymbol(),
-                "Class '" + currentClass.getName() + "' has no superclass",
-                SemanticError.ErrorType.INVALID_SUPER);
-            return ErrorType.getInstance();
-        }
-        
-        return superClass.getType();
+    public Type visitParenExpr(ParenExprContext ctx) {
+        if (ctx == null || ctx.expr() == null) return ErrorType.getInstance();
+        return visit(ctx.expr());
     }
     
-    // Type visitors
+    // Helper methods
     
-    @Override
-    public Type visitType(TypeContext ctx) {
-        if (ctx == null) return ErrorType.getInstance();
+    private Type getArrayType(Type baseType, VarDeclaratorContext declarator) {
+        Type result = baseType;
         
-        Type baseType = null;
-        
-        if (ctx.primitiveType() != null) {
-            baseType = visit(ctx.primitiveType());
-        } else if (ctx.classType() != null) {
-            baseType = visit(ctx.classType());
+        // Count array dimensions by looking for '[' tokens
+        for (int i = 0; i < declarator.getChildCount(); i++) {
+            ParseTree child = declarator.getChild(i);
+            if (child instanceof TerminalNode) {
+                TerminalNode terminal = (TerminalNode) child;
+                if (terminal.getSymbol().getType() == TypeCheckerParser.LBRACK) {
+                    result = new ArrayType(result);
+                }
+            }
         }
         
-        if (baseType == null) {
-            return ErrorType.getInstance();
+        return result;
+    }
+    
+    private Type getTypeFromParamContext(ParamContext param) {
+        if (param == null || param.type() == null) return null;
+        
+        Type baseType = visit(param.type());
+        if (baseType == null) return null;
+        
+        // Handle array parameters
+        Type result = baseType;
+        for (int i = 0; i < param.getChildCount(); i++) {
+            ParseTree child = param.getChild(i);
+            if (child instanceof TerminalNode) {
+                TerminalNode terminal = (TerminalNode) child;
+                if (terminal.getSymbol().getType() == TypeCheckerParser.LBRACK) {
+                    result = new ArrayType(result);
+                }
+            }
         }
         
-        // Handle array dimensions
-        int arrayDims = (ctx.getChildCount() - 1) / 2; // Each dimension is '[' ']'
-        Type type = baseType;
-        for (int i = 0; i < arrayDims; i++) {
-            type = new ArrayType(type);
+        return result;
+    }
+    
+    private boolean matchesParameterTypes(List<VariableSymbol> params, List<Type> types) {
+        if (params.size() != types.size()) {
+            return false;
         }
         
-        return type;
+        for (int i = 0; i < params.size(); i++) {
+            if (!params.get(i).getType().equals(types.get(i))) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    private boolean isNumericType(Type type) {
+        return type.equals(PrimitiveType.INT) || type.equals(PrimitiveType.FLOAT);
     }
     
     @Override
@@ -1836,87 +1370,16 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         if (ctx == null || ctx.ID() == null) return ErrorType.getInstance();
         
         String className = ctx.ID().getText();
-        Symbol symbol = symbolTable.getGlobalScope().resolve(className);
+        Symbol symbol = globalScope.resolve(className);
         
         if (symbol == null) {
-            addError(ctx.ID().getSymbol(),
-                "Class '" + className + "' is not defined",
-                SemanticError.ErrorType.UNDEFINED_CLASS);
-            return ErrorType.getInstance();
+            return new ClassType(className, null); // Forward reference
         }
         
         if (!(symbol instanceof ClassSymbol)) {
-            addError(ctx.ID().getSymbol(),
-                "'" + className + "' is not a class",
-                SemanticError.ErrorType.TYPE_MISMATCH);
             return ErrorType.getInstance();
         }
         
-        return ((ClassSymbol) symbol).getType();
-    }
-    
-    // Literal visitors
-    
-    @Override
-    public Type visitIntLiteral(IntLiteralContext ctx) {
-        return PrimitiveType.INT;
-    }
-    
-    @Override
-    public Type visitFloatLiteral(FloatLiteralContext ctx) {
-        return PrimitiveType.FLOAT;
-    }
-    
-    @Override
-    public Type visitCharLiteral(CharLiteralContext ctx) {
-        return PrimitiveType.CHAR;
-    }
-    
-    @Override
-    public Type visitStringLiteral(StringLiteralContext ctx) {
-        return PrimitiveType.STRING;
-    }
-    
-    @Override
-    public Type visitBooleanLiteral(BooleanLiteralContext ctx) {
-        return PrimitiveType.BOOLEAN;
-    }
-    
-    @Override
-    public Type visitNullLiteral(NullLiteralContext ctx) {
-        return NullType.getInstance();
-    }
-    
-    // Helper visitors
-    
-    @Override
-    public Type visitForInit(ForInitContext ctx) {
-        if (ctx == null) return null;
-        
-        if (ctx.localVarDecl() != null) {
-            return visit(ctx.localVarDecl());
-        } else if (ctx.exprList() != null) {
-            return visit(ctx.exprList());
-        }
-        
-        return null;
-    }
-    
-    @Override
-    public Type visitForUpdate(ForUpdateContext ctx) {
-        if (ctx != null && ctx.exprList() != null) {
-            return visit(ctx.exprList());
-        }
-        return null;
-    }
-    
-    @Override
-    public Type visitExprList(ExprListContext ctx) {
-        if (ctx != null && ctx.expr() != null) {
-            for (var expr : ctx.expr()) {
-                visit(expr);
-            }
-        }
-        return null;
+        return symbol.getType();
     }
 }

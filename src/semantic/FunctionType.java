@@ -2,13 +2,71 @@ package semantic;
 
 import java.util.*;
 
-public class FunctionType extends Type {
-    private Type returnType;
-    private List<Type> parameterTypes;
+/**
+ * Represents a function type in the type system.
+ * Used for function pointers or first-class functions if supported.
+ */
+public class FunctionType implements Type {
+    private final Type returnType;
+    private final List<Type> parameterTypes;
+    private final boolean isVarArgs;
     
+    /**
+     * Create a function type with fixed parameters.
+     */
     public FunctionType(Type returnType, List<Type> parameterTypes) {
+        this(returnType, parameterTypes, false);
+    }
+    
+    /**
+     * Create a function type with optional varargs support.
+     */
+    public FunctionType(Type returnType, List<Type> parameterTypes, boolean isVarArgs) {
+        if (returnType == null) {
+            throw new IllegalArgumentException("Return type cannot be null");
+        }
+        
         this.returnType = returnType;
-        this.parameterTypes = new ArrayList<>(parameterTypes);
+        this.parameterTypes = new ArrayList<>(parameterTypes != null ? parameterTypes : Collections.emptyList());
+        this.isVarArgs = isVarArgs;
+    }
+    
+    /**
+     * Get the return type of this function.
+     */
+    public Type getReturnType() {
+        return returnType;
+    }
+    
+    /**
+     * Get the parameter types of this function.
+     */
+    public List<Type> getParameterTypes() {
+        return new ArrayList<>(parameterTypes);
+    }
+    
+    /**
+     * Get the number of parameters.
+     */
+    public int getParameterCount() {
+        return parameterTypes.size();
+    }
+    
+    /**
+     * Get a specific parameter type by index.
+     */
+    public Type getParameterType(int index) {
+        if (index >= 0 && index < parameterTypes.size()) {
+            return parameterTypes.get(index);
+        }
+        return null;
+    }
+    
+    /**
+     * Check if this function has variable arguments.
+     */
+    public boolean isVarArgs() {
+        return isVarArgs;
     }
     
     @Override
@@ -18,21 +76,76 @@ public class FunctionType extends Type {
         for (int i = 0; i < parameterTypes.size(); i++) {
             if (i > 0) sb.append(", ");
             sb.append(parameterTypes.get(i).getName());
+            if (isVarArgs && i == parameterTypes.size() - 1) {
+                sb.append("...");
+            }
         }
-        sb.append(") -> ").append(returnType.getName());
+        sb.append(") -> ");
+        sb.append(returnType.getName());
         return sb.toString();
     }
     
     @Override
-    public boolean equals(Type other) {
-        if (!(other instanceof FunctionType)) return false;
-        FunctionType otherFunc = (FunctionType) other;
+    public boolean isReference() {
+        return true; // Function pointers are references
+    }
+    
+    @Override
+    public boolean isFunction() {
+        return true;
+    }
+    
+    @Override
+    public int getSize() {
+        // Size of function pointer
+        return 8; // 64-bit pointer
+    }
+    
+    /**
+     * Check if this function type is compatible with another.
+     * Used for function pointer assignments.
+     */
+    public boolean isCompatibleWith(FunctionType other) {
+        // Check return type compatibility (covariant)
+        if (!TypeCompatibility.isAssignmentCompatible(
+                this.returnType, other.returnType)) {
+            return false;
+        }
         
-        if (!returnType.equals(otherFunc.returnType)) return false;
-        if (parameterTypes.size() != otherFunc.parameterTypes.size()) return false;
+        // Check parameter count
+        if (this.parameterTypes.size() != other.parameterTypes.size()) {
+            return false;
+        }
+        
+        // Check parameter types (contravariant)
+        for (int i = 0; i < parameterTypes.size(); i++) {
+            if (!TypeCompatibility.isAssignmentCompatible(
+                    other.parameterTypes.get(i), this.parameterTypes.get(i))) {
+                return false;
+            }
+        }
+        
+        // Check varargs compatibility
+        if (this.isVarArgs != other.isVarArgs) {
+            return false;
+        }
+        
+        return true;
+    }
+    
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) return true;
+        if (!(other instanceof FunctionType)) return false;
+        
+        FunctionType that = (FunctionType) other;
+        
+        if (!returnType.equals(that.returnType)) return false;
+        if (isVarArgs != that.isVarArgs) return false;
+        if (parameterTypes.size() != that.parameterTypes.size()) return false;
         
         for (int i = 0; i < parameterTypes.size(); i++) {
-            if (!parameterTypes.get(i).equals(otherFunc.parameterTypes.get(i))) {
+            if (!parameterTypes.get(i).equals(that.parameterTypes.get(i))) {
                 return false;
             }
         }
@@ -41,15 +154,15 @@ public class FunctionType extends Type {
     }
     
     @Override
-    public boolean isAssignableTo(Type other) {
-        return this.equals(other);
+    public int hashCode() {
+        int result = returnType.hashCode();
+        result = 31 * result + parameterTypes.hashCode();
+        result = 31 * result + (isVarArgs ? 1 : 0);
+        return result;
     }
     
-    public Type getReturnType() { 
-        return returnType; 
-    }
-    
-    public List<Type> getParameterTypes() { 
-        return new ArrayList<>(parameterTypes); 
+    @Override
+    public String toString() {
+        return getName();
     }
 }

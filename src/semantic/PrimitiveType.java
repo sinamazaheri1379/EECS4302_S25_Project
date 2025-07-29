@@ -1,44 +1,110 @@
 package semantic;
 
-public class PrimitiveType extends Type {
-    public enum Kind { INT, FLOAT, STRING, BOOLEAN, CHAR, VOID }
-    private Kind kind;
+/**
+ * Represents primitive types in the language.
+ * Uses singleton pattern for each primitive type.
+ */
+public class PrimitiveType implements Type {
     
-    private PrimitiveType(Kind kind) {
-        this.kind = kind;
+    // Singleton instances for each primitive type
+    public static final PrimitiveType INT = new PrimitiveType("int", 4);
+    public static final PrimitiveType FLOAT = new PrimitiveType("float", 4);
+    public static final PrimitiveType BOOLEAN = new PrimitiveType("boolean", 1);
+    public static final PrimitiveType CHAR = new PrimitiveType("char", 2);
+    public static final PrimitiveType STRING = new PrimitiveType("string", 8); // Reference to string object
+    public static final PrimitiveType VOID = new PrimitiveType("void", 0);
+    
+    private final String name;
+    private final int size;
+    
+    private PrimitiveType(String name, int size) {
+        this.name = name;
+        this.size = size;
     }
-    
-    // Singleton instances
-    public static final PrimitiveType INT = new PrimitiveType(Kind.INT);
-    public static final PrimitiveType FLOAT = new PrimitiveType(Kind.FLOAT);
-    public static final PrimitiveType STRING = new PrimitiveType(Kind.STRING);
-    public static final PrimitiveType BOOLEAN = new PrimitiveType(Kind.BOOLEAN);
-    public static final PrimitiveType CHAR = new PrimitiveType(Kind.CHAR);
-    public static final PrimitiveType VOID = new PrimitiveType(Kind.VOID);
     
     @Override
     public String getName() {
-        return kind.toString().toLowerCase();
+        return name;
     }
     
     @Override
-    public boolean equals(Type other) {
+    public int getSize() {
+        return size;
+    }
+    
+    @Override
+    public boolean isPrimitive() {
+        return true;
+    }
+    
+    @Override
+    public boolean isReference() {
+        // STRING is treated as a reference type in most languages
+        return this == STRING;
+    }
+    
+    /**
+     * Check if this is a numeric type.
+     */
+    public boolean isNumeric() {
+        return this == INT || this == FLOAT;
+    }
+    
+    /**
+     * Check if this is an integral type.
+     */
+    public boolean isIntegral() {
+        return this == INT || this == CHAR;
+    }
+    
+    /**
+     * Get the result type of a binary operation between two primitive types.
+     */
+    public static PrimitiveType getBinaryOpResultType(PrimitiveType left, PrimitiveType right, String op) {
+        // Arithmetic operations
+        if (op.equals("+") || op.equals("-") || op.equals("*") || op.equals("/") || op.equals("%")) {
+            if (left.isNumeric() && right.isNumeric()) {
+                // Float takes precedence
+                if (left == FLOAT || right == FLOAT) {
+                    return FLOAT;
+                }
+                return INT;
+            }
+            // String concatenation
+            if (op.equals("+") && (left == STRING || right == STRING)) {
+                return STRING;
+            }
+        }
+        
+        // Comparison operations
+        if (op.equals("<") || op.equals("<=") || op.equals(">") || op.equals(">=") ||
+            op.equals("==") || op.equals("!=")) {
+            return BOOLEAN;
+        }
+        
+        // Logical operations
+        if (op.equals("&&") || op.equals("||")) {
+            if (left == BOOLEAN && right == BOOLEAN) {
+                return BOOLEAN;
+            }
+        }
+        
+        return null; // Invalid operation
+    }
+    
+    @Override
+    public boolean equals(Object other) {
+        // Since we use singletons, reference equality is sufficient
         return this == other;
     }
     
     @Override
-    public boolean isAssignableTo(Type other) {
-        if (this.equals(other)) return true;
-        
-        // Type promotion rules
-        if (this == INT && other == FLOAT) return true;
-        if (this == CHAR && other == INT) return true;
-        if (this == CHAR && other == FLOAT) return true;
-        
-        return false;
+    public int hashCode() {
+        return name.hashCode();
     }
     
-    public Kind getKind() {
-        return kind;
+    @Override
+    public String toString() {
+        return name;
     }
 }

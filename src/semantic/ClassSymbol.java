@@ -7,7 +7,7 @@ import java.util.*;
  */
 public class ClassSymbol extends Symbol {
     private ClassSymbol superClass;
-    private SymbolTable memberScope;
+    private Scope memberScope;
     private List<ClassSymbol> interfaces;
     private Map<String, List<MethodSymbol>> methods; // For overloading support
     private List<ConstructorSymbol> constructors;
@@ -15,7 +15,6 @@ public class ClassSymbol extends Symbol {
     public ClassSymbol(String name, int line, int column) {
         super(name, new ClassType(name, null), line, column);
         ((ClassType) this.type).setClassSymbol(this);
-        this.memberScope = new SymbolTable(name + "_members", null);
         this.interfaces = new ArrayList<>();
         this.methods = new HashMap<>();
         this.constructors = new ArrayList<>();
@@ -23,15 +22,55 @@ public class ClassSymbol extends Symbol {
     
     // Getters and setters
     public ClassSymbol getSuperClass() { return superClass; }
-    public void setSuperClass(ClassSymbol superClass) { this.superClass = superClass; }
+    public void setSuperClass(ClassSymbol superClass) { 
+        this.superClass = superClass;
+        // Update the ClassType to reflect inheritance
+        if (this.type instanceof ClassType) {
+            ((ClassType) this.type).setSuperClass(superClass);
+        }
+    }
     
-    public SymbolTable getMemberScope() { return memberScope; }
+    public Scope getMemberScope() { return memberScope; }
+    public void setMemberScope(Scope memberScope) { 
+        this.memberScope = memberScope; 
+    }
     
     public List<ClassSymbol> getInterfaces() { return new ArrayList<>(interfaces); }
     public void addInterface(ClassSymbol interfaceSymbol) { interfaces.add(interfaceSymbol); }
     
     public List<ConstructorSymbol> getConstructors() { return new ArrayList<>(constructors); }
-    public void addConstructor(ConstructorSymbol constructor) { constructors.add(constructor); }
+    public void addConstructor(ConstructorSymbol constructor) { 
+        constructors.add(constructor);
+    }
+    
+    /**
+     * Add a method to this class.
+     */
+    public void addMethod(MethodSymbol method) {
+        String methodName = method.getName();
+        List<MethodSymbol> overloads = methods.computeIfAbsent(methodName, k -> new ArrayList<>());
+        overloads.add(method);
+        method.setOwnerClass(this);
+    }
+    
+    /**
+     * Get all methods with a given name (for overloading).
+     */
+    public List<MethodSymbol> getMethods(String name) {
+        List<MethodSymbol> result = methods.get(name);
+        return result != null ? new ArrayList<>(result) : new ArrayList<>();
+    }
+    
+    /**
+     * Get all methods in this class.
+     */
+    public List<MethodSymbol> getAllMethods() {
+        List<MethodSymbol> allMethods = new ArrayList<>();
+        for (List<MethodSymbol> overloads : methods.values()) {
+            allMethods.addAll(overloads);
+        }
+        return allMethods;
+    }
     
     /**
      * Find a method by name and parameter types (for overloading).
@@ -46,12 +85,14 @@ public class ClassSymbol extends Symbol {
             }
         }
         
-        // Check member scope for compatibility
-        Symbol symbol = memberScope.resolve(name);
-        if (symbol instanceof MethodSymbol) {
-            MethodSymbol method = (MethodSymbol) symbol;
-            if (isMethodCompatible(method, argTypes)) {
-                return method;
+        // Check member scope for compatibility with old code
+        if (memberScope != null) {
+            Symbol symbol = memberScope.resolveLocal(name);
+            if (symbol instanceof MethodSymbol) {
+                MethodSymbol method = (MethodSymbol) symbol;
+                if (isMethodCompatible(method, argTypes)) {
+                    return method;
+                }
             }
         }
         
@@ -67,29 +108,19 @@ public class ClassSymbol extends Symbol {
      * Find a constructor by parameter types.
      */
     public ConstructorSymbol findConstructor(List<Type> argTypes) {
-        ConstructorSymbol bestMatch = null;
-        int bestScore = Integer.MAX_VALUE;
-        
         for (ConstructorSymbol constructor : constructors) {
             if (isConstructorCompatible(constructor, argTypes)) {
-                int score = calculateMatchScore(constructor.getParameters(), argTypes);
-                if (score < bestScore) {
-                    bestScore = score;
-                    bestMatch = constructor;
-                }
+                return constructor;
             }
         }
         
-        return bestMatch;
-    }
-    
-    /**
-     * Add a method to this class (supports overloading).
-     */
-    public void addMethod(MethodSymbol method) {
-        String name = method.getName();
-        methods.computeIfAbsent(name, k -> new ArrayList<>()).add(method);
-        memberScope.define(method);
+        // If no constructor found and no args, check for default constructor
+        if (argTypes.isEmpty() && constructors.isEmpty() && superClass == null) {
+            // Implicit default constructor
+            return createDefaultConstructor();
+        }
+        
+        return null;
     }
     
     /**
@@ -97,9 +128,11 @@ public class ClassSymbol extends Symbol {
      */
     public Symbol resolveMember(String name) {
         // Check this class first
-        Symbol member = memberScope.resolveLocal(name);
-        if (member != null) {
-            return member;
+        if (memberScope != null) {
+            Symbol member = memberScope.resolveLocal(name);
+            if (member != null) {
+                return member;
+            }
         }
         
         // Then check superclass
@@ -111,37 +144,31 @@ public class ClassSymbol extends Symbol {
     }
     
     /**
-     * Check if this class is assignable to another type.
+     * Get all fields (variables) in this class.
      */
-    public boolean isAssignableTo(Type other) {
-        if (!(other instanceof ClassType)) {
-            return false;
-        }
-        
-        ClassType otherClass = (ClassType) other;
-        ClassSymbol otherSymbol = otherClass.getClassSymbol();
-        
-        if (otherSymbol == null) {
-            return false;
-        }
-        
-        // Check if same class
-        if (this == otherSymbol) {
-            return true;
-        }
-        
-        // Check inheritance chain
-        ClassSymbol current = this;
-        while (current != null) {
-            if (current == otherSymbol) {
-                return true;
+    public List<VariableSymbol> getFields() {
+        List<VariableSymbol> fields = new ArrayList<>();
+        if (memberScope != null) {
+            for (Symbol symbol : memberScope.getSymbols()) {
+                if (symbol instanceof VariableSymbol && !"this".equals(symbol.getName())) {
+                    fields.add((VariableSymbol) symbol);
+                }
             }
-            current = current.superClass;
+        }
+        return fields;
+    }
+    
+    /**
+     * Check if this class has a default (no-arg) constructor.
+     */
+    public boolean hasDefaultConstructor() {
+        if (constructors.isEmpty()) {
+            // No explicit constructors means implicit default constructor
+            return superClass == null || superClass.hasDefaultConstructor();
         }
         
-        // Check interfaces
-        for (ClassSymbol iface : interfaces) {
-            if (iface.isAssignableTo(other)) {
+        for (ConstructorSymbol constructor : constructors) {
+            if (constructor.getParameters().isEmpty()) {
                 return true;
             }
         }
@@ -153,94 +180,165 @@ public class ClassSymbol extends Symbol {
      * Find the best matching method from a list of overloads.
      */
     private MethodSymbol findBestMethodMatch(List<MethodSymbol> overloads, List<Type> argTypes) {
-        MethodSymbol bestMatch = null;
-        int bestScore = Integer.MAX_VALUE;
+        // First pass: exact match
+        for (MethodSymbol method : overloads) {
+            if (exactMatch(method, argTypes)) {
+                return method;
+            }
+        }
         
+        // Second pass: compatible match (with widening)
         for (MethodSymbol method : overloads) {
             if (isMethodCompatible(method, argTypes)) {
-                int score = calculateMatchScore(method.getParameters(), argTypes);
-                if (score < bestScore) {
-                    bestScore = score;
-                    bestMatch = method;
+                return method;
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Check if method parameters exactly match argument types.
+     */
+    private boolean exactMatch(MethodSymbol method, List<Type> argTypes) {
+        List<VariableSymbol> params = method.getParameters();
+        if (params.size() != argTypes.size()) {
+            return false;
+        }
+        
+        for (int i = 0; i < params.size(); i++) {
+            if (!params.get(i).getType().equals(argTypes.get(i))) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Check if method is compatible with argument types (allowing widening).
+     */
+    private boolean isMethodCompatible(MethodSymbol method, List<Type> argTypes) {
+        List<VariableSymbol> params = method.getParameters();
+        if (params.size() != argTypes.size()) {
+            return false;
+        }
+        
+        for (int i = 0; i < params.size(); i++) {
+            Type paramType = params.get(i).getType();
+            Type argType = argTypes.get(i);
+            if (!TypeCompatibility.isAssignmentCompatible(paramType, argType)) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Check if constructor is compatible with argument types.
+     */
+    private boolean isConstructorCompatible(ConstructorSymbol constructor, List<Type> argTypes) {
+        List<VariableSymbol> params = constructor.getParameters();
+        if (params.size() != argTypes.size()) {
+            return false;
+        }
+        
+        for (int i = 0; i < params.size(); i++) {
+            Type paramType = params.get(i).getType();
+            Type argType = argTypes.get(i);
+            if (!TypeCompatibility.isAssignmentCompatible(paramType, argType)) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Create an implicit default constructor.
+     */
+    private ConstructorSymbol createDefaultConstructor() {
+        ConstructorSymbol defaultConstructor = new ConstructorSymbol(name, line, column);
+        defaultConstructor.setVisibility(VariableSymbol.Visibility.PUBLIC);
+        return defaultConstructor;
+    }
+    
+    /**
+     * Check if this class is abstract.
+     */
+    public boolean isAbstract() {
+        // Check if any methods are abstract
+        for (List<MethodSymbol> overloads : methods.values()) {
+            for (MethodSymbol method : overloads) {
+                if (method.isAbstract()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Get all abstract methods that need to be implemented.
+     */
+    public List<MethodSymbol> getAbstractMethods() {
+        List<MethodSymbol> abstractMethods = new ArrayList<>();
+        Set<String> implementedMethods = new HashSet<>();
+        
+        // Collect all concrete methods in this class
+        for (List<MethodSymbol> overloads : methods.values()) {
+            for (MethodSymbol method : overloads) {
+                if (!method.isAbstract()) {
+                    implementedMethods.add(getMethodSignature(method));
                 }
             }
         }
         
-        return bestMatch;
+        // Collect abstract methods from superclass and interfaces
+        collectAbstractMethods(abstractMethods, implementedMethods);
+        
+        return abstractMethods;
     }
     
     /**
-     * Check if a method is compatible with given argument types.
+     * Recursively collect abstract methods.
      */
-    private boolean isMethodCompatible(MethodSymbol method, List<Type> argTypes) {
-        List<VariableSymbol> params = method.getParameters();
-        
-        if (params.size() != argTypes.size()) {
-            return false;
-        }
-        
-        for (int i = 0; i < params.size(); i++) {
-            Type paramType = params.get(i).getType();
-            Type argType = argTypes.get(i);
-            
-            if (!TypeCompatibility.isAssignmentCompatible(paramType, argType)) {
-                return false;
+    private void collectAbstractMethods(List<MethodSymbol> abstractMethods, Set<String> implemented) {
+        // From superclass
+        if (superClass != null) {
+            for (MethodSymbol method : superClass.getAllMethods()) {
+                if (method.isAbstract()) {
+                    String signature = getMethodSignature(method);
+                    if (!implemented.contains(signature)) {
+                        abstractMethods.add(method);
+                    }
+                }
             }
         }
         
-        return true;
+        // From interfaces
+        for (ClassSymbol iface : interfaces) {
+            for (MethodSymbol method : iface.getAllMethods()) {
+                String signature = getMethodSignature(method);
+                if (!implemented.contains(signature)) {
+                    abstractMethods.add(method);
+                }
+            }
+        }
     }
     
     /**
-     * Check if a constructor is compatible with given argument types.
+     * Get a unique signature string for a method.
      */
-    private boolean isConstructorCompatible(ConstructorSymbol constructor, List<Type> argTypes) {
-        List<VariableSymbol> params = constructor.getParameters();
-        
-        if (params.size() != argTypes.size()) {
-            return false;
+    private String getMethodSignature(MethodSymbol method) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(method.getName()).append("(");
+        for (VariableSymbol param : method.getParameters()) {
+            sb.append(param.getType().getName()).append(",");
         }
-        
-        for (int i = 0; i < params.size(); i++) {
-            Type paramType = params.get(i).getType();
-            Type argType = argTypes.get(i);
-            
-            if (!TypeCompatibility.isAssignmentCompatible(paramType, argType)) {
-                return false;
-            }
-        }
-        
-        return true;
-    }
-    
-    /**
-     * Calculate a match score for overload resolution.
-     * Lower score means better match.
-     */
-    private int calculateMatchScore(List<VariableSymbol> params, List<Type> argTypes) {
-        int score = 0;
-        
-        for (int i = 0; i < params.size(); i++) {
-            Type paramType = params.get(i).getType();
-            Type argType = argTypes.get(i);
-            
-            if (paramType.equals(argType)) {
-                // Exact match - best
-                score += 0;
-            } else if (argType instanceof NullType) {
-                // Null to reference type
-                score += 3;
-            } else if (paramType instanceof PrimitiveType && argType instanceof PrimitiveType &&
-                       TypeCompatibility.canPromote((PrimitiveType) argType, (PrimitiveType) paramType)) {
-                // Type promotion
-                score += 2;
-            } else {
-                // Other conversions (inheritance, etc.)
-                score += 1;
-            }
-        }
-        
-        return score;
+        sb.append(")");
+        return sb.toString();
     }
     
     @Override

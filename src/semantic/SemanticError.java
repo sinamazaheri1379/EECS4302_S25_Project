@@ -4,131 +4,158 @@ import org.antlr.v4.runtime.Token;
 
 /**
  * Represents a semantic error found during type checking.
- * Provides detailed error information including location and error type.
  */
 public class SemanticError {
-    private int line;
-    private int column;
-    private String message;
-    private ErrorType errorType;
-    private String suggestion;
     
     /**
-     * Enumeration of all possible semantic error types.
+     * Types of semantic errors.
      */
     public enum ErrorType {
-        // Variable-related errors
-        UNDEFINED_VARIABLE,
-        UNINITIALIZED_VARIABLE,
-        DUPLICATE_VARIABLE,
-        UNINITIALIZED_FINAL,
-        FINAL_VARIABLE_ASSIGNMENT,
+        // Variable/Symbol errors
+        UNDEFINED_VARIABLE("Undefined variable"),
+        UNDEFINED_FUNCTION("Undefined function"),
+        UNDEFINED_CLASS("Undefined class"),
+        UNDEFINED_METHOD("Undefined method"),
+        UNDEFINED_FIELD("Undefined field"),
+        UNDEFINED_CONSTRUCTOR("Undefined constructor"),
+        REDEFINITION("Symbol redefinition"),
         
-        // Class and type errors
-        UNDEFINED_CLASS,
-        UNDEFINED_FIELD,
-        DUPLICATE_CLASS,
-        CIRCULAR_INHERITANCE,
+        // Type errors
+        TYPE_MISMATCH("Type mismatch"),
+        INCOMPATIBLE_TYPES("Incompatible types"),
+        INVALID_CAST("Invalid type cast"),
+        ARGUMENT_MISMATCH("Argument type mismatch"),
         
-        // Method and function errors
-        UNDEFINED_METHOD,
-        UNDEFINED_FUNCTION,
-        UNDEFINED_CONSTRUCTOR,
-        DUPLICATE_METHOD,
-        ARGUMENT_MISMATCH,
+        // Initialization errors
+        UNINITIALIZED_VARIABLE("Uninitialized variable"),
+        UNINITIALIZED_FINAL("Uninitialized final variable"),
         
-        // Type checking errors
-        TYPE_MISMATCH,
-        INVALID_CAST,
-        INVALID_OPERATION,
-        ARRAY_INDEX_TYPE,
+        // Assignment errors
+        FINAL_VARIABLE_ASSIGNMENT("Assignment to final variable"),
+        INVALID_LVALUE("Invalid left-hand side of assignment"),
+        
+        // Access errors
+        ACCESS_VIOLATION("Access violation"),
+        STATIC_CONTEXT_ERROR("Static context error"),
         
         // Control flow errors
-        MISSING_RETURN,
-        INVALID_RETURN,
-        UNREACHABLE_CODE,
-        INVALID_BREAK_CONTINUE,
+        MISSING_RETURN("Missing return statement"),
+        UNREACHABLE_CODE("Unreachable code"),
+        INVALID_BREAK("Invalid break statement"),
+        INVALID_CONTINUE("Invalid continue statement"),
+        INVALID_RETURN("Invalid return statement"),
         
-        // Access control errors
-        ACCESS_VIOLATION,
-        VISIBILITY_VIOLATION,
-        STATIC_CONTEXT_ERROR,
+        // Class/Method errors
+        CIRCULAR_INHERITANCE("Circular inheritance"),
+        INVALID_OVERRIDE("Invalid method override"),
+        ABSTRACT_CLASS_INSTANTIATION("Cannot instantiate abstract class"),
+        UNIMPLEMENTED_ABSTRACT_METHOD("Unimplemented abstract method"),
         
-        // Special construct errors
-        INVALID_THIS,
-        INVALID_SUPER,
-        INVALID_CONSTRUCTOR,
-        CONSTRUCTOR_ERROR,
+        // Constructor errors
+        CONSTRUCTOR_ERROR("Constructor error"),
+        INVALID_CONSTRUCTOR("Invalid constructor"),
+        MISSING_SUPER_CONSTRUCTOR("Missing super constructor call"),
         
-        // Switch statement errors
-        DUPLICATE_CASE,
+        // Special errors
+        INVALID_THIS("Invalid use of 'this'"),
+        INVALID_SUPER("Invalid use of 'super'"),
         
-        // General errors
-        REDEFINITION,
-        INTERNAL_ERROR,
-        FINAL_REASSIGNMENT
+        // Array errors
+        INVALID_ARRAY_SIZE("Invalid array size"),
+        ARRAY_INDEX_TYPE("Invalid array index type"),
+        
+        // Internal errors
+        INTERNAL_ERROR("Internal compiler error");
+        
+        private final String description;
+        
+        ErrorType(String description) {
+            this.description = description;
+        }
+        
+        public String getDescription() {
+            return description;
+        }
+    }
+    
+    private final int line;
+    private final int column;
+    private final String message;
+    private final ErrorType type;
+    private final String sourceLine;
+    
+    /**
+     * Create a semantic error from a token.
+     */
+    public SemanticError(Token token, String message, ErrorType type) {
+        this.line = token.getLine();
+        this.column = token.getCharPositionInLine();
+        this.message = message;
+        this.type = type;
+        this.sourceLine = token.getInputStream() != null ? 
+            token.getInputStream().toString() : null;
     }
     
     /**
-     * Create error from line and column numbers.
+     * Create a semantic error with explicit position.
      */
-    public SemanticError(int line, int column, String message, ErrorType errorType) {
+    public SemanticError(int line, int column, String message, ErrorType type) {
         this.line = line;
         this.column = column;
         this.message = message;
-        this.errorType = errorType;
-        this.suggestion = "";
-    }
-    
-    /**
-     * Create error from Token.
-     */
-    public SemanticError(Token token, String message, ErrorType errorType) {
-        this(token.getLine(), token.getCharPositionInLine(), message, errorType);
-    }
-    
-    /**
-     * Create error with suggestion.
-     */
-    public SemanticError(int line, int column, String message, ErrorType errorType, String suggestion) {
-        this(line, column, message, errorType);
-        this.suggestion = suggestion;
-    }
-    
-    /**
-     * Create error from Token with suggestion.
-     */
-    public SemanticError(Token token, String message, ErrorType errorType, String suggestion) {
-        this(token.getLine(), token.getCharPositionInLine(), message, errorType, suggestion);
+        this.type = type;
+        this.sourceLine = null;
     }
     
     // Getters
     public int getLine() { return line; }
     public int getColumn() { return column; }
     public String getMessage() { return message; }
-    public ErrorType getErrorType() { return errorType; }
-    public String getSuggestion() { return suggestion; }
+    public ErrorType getType() { return type; }
+    public String getSourceLine() { return sourceLine; }
     
     /**
-     * Get severity level of the error.
+     * Get a formatted error message.
      */
-    public String getSeverity() {
-        switch (errorType) {
-            case UNREACHABLE_CODE:
-            case UNINITIALIZED_VARIABLE:
-                return "WARNING";
-            default:
-                return "ERROR";
+    public String getFormattedMessage() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Line ").append(line).append(":").append(column);
+        sb.append(" [").append(type.getDescription()).append("] ");
+        sb.append(message);
+        return sb.toString();
+    }
+    
+    /**
+     * Get a detailed error message with source context.
+     */
+    public String getDetailedMessage() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(getFormattedMessage());
+        
+        if (sourceLine != null && !sourceLine.isEmpty()) {
+            sb.append("\n").append(sourceLine);
+            sb.append("\n");
+            for (int i = 0; i < column; i++) {
+                sb.append(" ");
+            }
+            sb.append("^");
         }
+        
+        return sb.toString();
     }
     
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(String.format("Line %d:%d - %s: %s", line, column, getSeverity(), message));
-        if (!suggestion.isEmpty()) {
-            sb.append("\n  Suggestion: ").append(suggestion);
+        return getFormattedMessage();
+    }
+    
+    /**
+     * Compare errors for sorting by position.
+     */
+    public int compareTo(SemanticError other) {
+        if (this.line != other.line) {
+            return Integer.compare(this.line, other.line);
         }
-        return sb.toString();
+        return Integer.compare(this.column, other.column);
     }
 }

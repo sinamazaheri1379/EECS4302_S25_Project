@@ -1,229 +1,250 @@
 package semantic;
 
 /**
- * Utility class for type compatibility checking and promotion.
- * Implements automatic type promotion rules for the type system.
+ * Utility class for checking type compatibility in assignments, comparisons, etc.
  */
 public class TypeCompatibility {
     
     /**
-     * Check if source type can be assigned to target type.
-     * This includes exact matches, type promotion, and inheritance.
+     * Check if a value of type 'from' can be assigned to a variable of type 'to'.
+     * This handles widening conversions, null assignments, and inheritance.
      */
-    public static boolean isAssignmentCompatible(Type target, Type source) {
-        // Exact match
-        if (source.equals(target)) {
-            return true;
+    public static boolean isAssignmentCompatible(Type to, Type from) {
+        // Null check
+        if (to == null || from == null) {
+            return false;
         }
         
-        // Error type is compatible with anything to prevent cascading errors
-        if (source instanceof ErrorType || target instanceof ErrorType) {
+        // Error types are not compatible with anything
+        if (to instanceof ErrorType || from instanceof ErrorType) {
+            return false;
+        }
+        
+        // Same type is always compatible
+        if (to.equals(from)) {
             return true;
         }
         
         // Null can be assigned to any reference type
-        if (source instanceof NullType) {
-            return target instanceof ClassType || target instanceof ArrayType;
+        if (from instanceof NullType && to instanceof ClassType) {
+            return true;
         }
         
-        // Primitive type promotions
-        if (source instanceof PrimitiveType && target instanceof PrimitiveType) {
-            return canPromote((PrimitiveType) source, (PrimitiveType) target);
+        // Widening primitive conversions
+        if (to.equals(PrimitiveType.FLOAT) && from.equals(PrimitiveType.INT)) {
+            return true;
         }
         
-        // Class type inheritance
-        if (source instanceof ClassType && target instanceof ClassType) {
-            return ((ClassType) source).isAssignableTo(target);
+        // String concatenation special case (if supported)
+        if (to.equals(PrimitiveType.STRING)) {
+            // Any type can be converted to string for concatenation
+            return true;
         }
         
         // Array type compatibility
-        if (source instanceof ArrayType && target instanceof ArrayType) {
-            ArrayType sourceArray = (ArrayType) source;
-            ArrayType targetArray = (ArrayType) target;
-            return isAssignmentCompatible(targetArray.getElementType(), sourceArray.getElementType());
+        if (to instanceof ArrayType && from instanceof ArrayType) {
+            ArrayType toArray = (ArrayType) to;
+            ArrayType fromArray = (ArrayType) from;
+            return isAssignmentCompatible(toArray.getElementType(), fromArray.getElementType());
+        }
+        
+        // Null can be assigned to arrays
+        if (from instanceof NullType && to instanceof ArrayType) {
+            return true;
+        }
+        
+        // Class inheritance
+        if (to instanceof ClassType && from instanceof ClassType) {
+            return isSubtypeOf((ClassType) from, (ClassType) to);
+        }
+        
+        // Function types (for function pointers/references if supported)
+        if (to instanceof FunctionType && from instanceof FunctionType) {
+            return isFunctionCompatible((FunctionType) to, (FunctionType) from);
         }
         
         return false;
     }
     
     /**
-     * Older method name for backward compatibility
+     * Check if two types can be compared for equality.
      */
-    public static boolean isAssignable(Type source, Type target) {
-        return isAssignmentCompatible(target, source);
-    }
-    
-    /**
-     * Check if a primitive type can be promoted to another.
-     * Implements numeric promotion rules.
-     */
-    public static boolean canPromote(PrimitiveType from, PrimitiveType to) {
-        // Same type - no promotion needed
-        if (from == to) {
-            return true;
-        }
-        
-        // char -> int -> float
-        if (from == PrimitiveType.CHAR) {
-            return to == PrimitiveType.INT || to == PrimitiveType.FLOAT;
-        }
-        if (from == PrimitiveType.INT) {
-            return to == PrimitiveType.FLOAT;
-        }
-        
-        return false;
-    }
-    
-    /**
-     * Check if a type can be cast to another type.
-     * More permissive than assignment compatibility.
-     */
-    public static boolean canCast(Type from, Type to) {
-        // Same type
-        if (from.equals(to)) {
-            return true;
-        }
-        
-        // Error type
-        if (from instanceof ErrorType || to instanceof ErrorType) {
-            return true;
-        }
-        
-        // Primitive type casts
-        if (from instanceof PrimitiveType && to instanceof PrimitiveType) {
-            PrimitiveType fromPrim = (PrimitiveType) from;
-            PrimitiveType toPrim = (PrimitiveType) to;
-            
-            // All numeric types can be cast to each other
-            if (isNumeric(fromPrim) && isNumeric(toPrim)) {
-                return true;
-            }
-            
-            // No cast between boolean and other types
+    public static boolean areComparable(Type type1, Type type2) {
+        // Null check
+        if (type1 == null || type2 == null) {
             return false;
         }
         
-        // Reference type casts
-        if (isReferenceType(from) && isReferenceType(to)) {
-            // Null can be cast to any reference type
-            if (from instanceof NullType) {
-                return true;
-            }
-            
-            // Class hierarchy casts
-            if (from instanceof ClassType && to instanceof ClassType) {
-                ClassType fromClass = (ClassType) from;
-                ClassType toClass = (ClassType) to;
-                
-                // Up-cast or down-cast in the same hierarchy
-                return fromClass.isAssignableTo(toClass) || toClass.isAssignableTo(fromClass);
-            }
-            
-            // Array casts - only if element types are compatible
-            if (from instanceof ArrayType && to instanceof ArrayType) {
-                ArrayType fromArray = (ArrayType) from;
-                ArrayType toArray = (ArrayType) to;
-                return canCast(fromArray.getElementType(), toArray.getElementType());
-            }
+        // Error types
+        if (type1 instanceof ErrorType || type2 instanceof ErrorType) {
+            return false;
         }
         
-        return false;
-    }
-    
-    /**
-     * Get the promoted type for binary operations.
-     * Returns the wider type that can hold both operands.
-     */
-    public static Type getPromotedType(Type left, Type right) {
-        // If either is error, return error
-        if (left instanceof ErrorType || right instanceof ErrorType) {
-            return ErrorType.getInstance();
-        }
-        
-        // String concatenation
-        if (left == PrimitiveType.STRING || right == PrimitiveType.STRING) {
-            return PrimitiveType.STRING;
-        }
-        
-        // Numeric promotion
-        if (isNumeric(left) && isNumeric(right)) {
-            // Float wins
-            if (left == PrimitiveType.FLOAT || right == PrimitiveType.FLOAT) {
-                return PrimitiveType.FLOAT;
-            }
-            // Int wins over char
-            if (left == PrimitiveType.INT || right == PrimitiveType.INT) {
-                return PrimitiveType.INT;
-            }
-            // Both must be char
-            return PrimitiveType.CHAR;
-        }
-        
-        // No promotion possible
-        return null;
-    }
-    
-    /**
-     * Check if a type is numeric (int, float, or char).
-     */
-    public static boolean isNumeric(Type type) {
-        return type == PrimitiveType.INT ||
-               type == PrimitiveType.FLOAT ||
-               type == PrimitiveType.CHAR;
-    }
-    
-    /**
-     * Check if types are compatible for equality comparison.
-     */
-    public static boolean areComparable(Type left, Type right) {
-        // Same type
-        if (left.equals(right)) {
+        // Same type is always comparable
+        if (type1.equals(type2)) {
             return true;
         }
         
         // Numeric types can be compared
-        if (isNumeric(left) && isNumeric(right)) {
+        if (isNumeric(type1) && isNumeric(type2)) {
             return true;
         }
         
         // Reference types can be compared with null
-        if ((left instanceof NullType && isReferenceType(right)) ||
-            (right instanceof NullType && isReferenceType(left))) {
+        if ((type1 instanceof ClassType || type1 instanceof ArrayType) && type2 instanceof NullType) {
+            return true;
+        }
+        if ((type2 instanceof ClassType || type2 instanceof ArrayType) && type1 instanceof NullType) {
             return true;
         }
         
-        // Class types in same hierarchy
-        if (left instanceof ClassType && right instanceof ClassType) {
-            return ((ClassType) left).isAssignableTo(right) ||
-                   ((ClassType) right).isAssignableTo(left);
+        // Reference types in same hierarchy can be compared
+        if (type1 instanceof ClassType && type2 instanceof ClassType) {
+            ClassType class1 = (ClassType) type1;
+            ClassType class2 = (ClassType) type2;
+            return isSubtypeOf(class1, class2) || isSubtypeOf(class2, class1);
         }
         
         return false;
+    }
+    
+    /**
+     * Check if type1 is a subtype of type2.
+     */
+    public static boolean isSubtypeOf(ClassType subType, ClassType superType) {
+        // Same type
+        if (subType.equals(superType)) {
+            return true;
+        }
+        
+        ClassSymbol subClass = subType.getClassSymbol();
+        ClassSymbol superClass = superType.getClassSymbol();
+        
+        if (subClass == null || superClass == null) {
+            // If symbols are not resolved, compare by name only
+            return subType.getName().equals(superType.getName());
+        }
+        
+        // Check superclass chain
+        ClassSymbol current = subClass;
+        while (current != null) {
+            if (current == superClass) {
+                return true;
+            }
+            current = current.getSuperClass();
+        }
+        
+        // Check interfaces (if supported)
+        return implementsInterface(subClass, superClass);
+    }
+    
+    /**
+     * Check if a class implements an interface.
+     */
+    private static boolean implementsInterface(ClassSymbol classSymbol, ClassSymbol interfaceSymbol) {
+        // Direct implementation
+        for (ClassSymbol iface : classSymbol.getInterfaces()) {
+            if (iface == interfaceSymbol) {
+                return true;
+            }
+            // Recursive check for interface inheritance
+            if (implementsInterface(iface, interfaceSymbol)) {
+                return true;
+            }
+        }
+        
+        // Check superclass
+        if (classSymbol.getSuperClass() != null) {
+            return implementsInterface(classSymbol.getSuperClass(), interfaceSymbol);
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check if a type is numeric.
+     */
+    public static boolean isNumeric(Type type) {
+        return type.equals(PrimitiveType.INT) || type.equals(PrimitiveType.FLOAT);
+    }
+    
+    /**
+     * Check if two function types are compatible.
+     */
+    private static boolean isFunctionCompatible(FunctionType to, FunctionType from) {
+        // Return type must be compatible (covariant)
+        if (!isAssignmentCompatible(to.getReturnType(), from.getReturnType())) {
+            return false;
+        }
+        
+        // Parameter types must match exactly (no contravariance for simplicity)
+        if (to.getParameterTypes().size() != from.getParameterTypes().size()) {
+            return false;
+        }
+        
+        for (int i = 0; i < to.getParameterTypes().size(); i++) {
+            if (!to.getParameterTypes().get(i).equals(from.getParameterTypes().get(i))) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Get the common type for binary operations.
+     * Used for arithmetic operations where type promotion occurs.
+     */
+    public static Type getCommonType(Type type1, Type type2) {
+        // Error propagation
+        if (type1 instanceof ErrorType || type2 instanceof ErrorType) {
+            return ErrorType.getInstance();
+        }
+        
+        // Same type
+        if (type1.equals(type2)) {
+            return type1;
+        }
+        
+        // Numeric promotion
+        if (isNumeric(type1) && isNumeric(type2)) {
+            // Float takes precedence
+            if (type1.equals(PrimitiveType.FLOAT) || type2.equals(PrimitiveType.FLOAT)) {
+                return PrimitiveType.FLOAT;
+            }
+            return PrimitiveType.INT;
+        }
+        
+        // String concatenation
+        if (type1.equals(PrimitiveType.STRING) || type2.equals(PrimitiveType.STRING)) {
+            return PrimitiveType.STRING;
+        }
+        
+        // No common type
+        return ErrorType.getInstance();
+    }
+    
+    /**
+     * Check if a type can be used in a boolean context.
+     */
+    public static boolean isBooleanContext(Type type) {
+        return type.equals(PrimitiveType.BOOLEAN);
     }
     
     /**
      * Check if a type is a reference type.
      */
     public static boolean isReferenceType(Type type) {
-        return type instanceof ClassType ||
-               type instanceof ArrayType ||
-               type instanceof NullType;
+        return type instanceof ClassType || 
+               type instanceof ArrayType || 
+               type instanceof NullType ||
+               type instanceof FunctionType;
     }
     
     /**
-     * Get the result type of a binary arithmetic operation.
+     * Check if a type is a primitive type.
      */
-    public static Type getArithmeticResultType(Type left, Type right, String operator) {
-        if (!isNumeric(left) || !isNumeric(right)) {
-            return null;
-        }
-        
-        // Division always returns float
-        if (operator.equals("/")) {
-            return PrimitiveType.FLOAT;
-        }
-        
-        // Otherwise, use promotion rules
-        return getPromotedType(left, right);
+    public static boolean isPrimitiveType(Type type) {
+        return type instanceof PrimitiveType;
     }
 }

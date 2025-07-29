@@ -13,10 +13,34 @@ public class VariableSymbol extends Symbol {
      * Visibility levels for class members.
      */
     public enum Visibility {
-        PUBLIC,
-        PRIVATE,
-        PROTECTED,
-        DEFAULT
+        PUBLIC("public"),
+        PRIVATE("private"),
+        PROTECTED("protected"),
+        DEFAULT(""); // Package-private
+        
+        private final String keyword;
+        
+        Visibility(String keyword) {
+            this.keyword = keyword;
+        }
+        
+        public String getKeyword() {
+            return keyword;
+        }
+        
+        /**
+         * Get visibility level for access checking.
+         * Higher number = more accessible.
+         */
+        public int getLevel() {
+            switch (this) {
+                case PRIVATE: return 0;
+                case DEFAULT: return 1;
+                case PROTECTED: return 2;
+                case PUBLIC: return 3;
+                default: return 1;
+            }
+        }
     }
     
     /**
@@ -65,39 +89,118 @@ public class VariableSymbol extends Symbol {
     }
     
     /**
-     * Check if this variable is a field (has non-default visibility).
+     * Check if this variable is protected.
+     */
+    public boolean isProtected() {
+        return visibility == Visibility.PROTECTED;
+    }
+    
+    /**
+     * Check if this variable is a field (class member).
      */
     public boolean isField() {
-        return visibility != Visibility.DEFAULT;
+        return visibility != Visibility.DEFAULT || isStatic;
     }
     
     /**
      * Check if this variable is a local variable.
      */
     public boolean isLocal() {
-        return visibility == Visibility.DEFAULT && !isStatic;
+        return !isField() && !isParameter();
     }
     
     /**
      * Check if this variable is a parameter.
-     * Parameters are always initialized.
+     * Parameters are initialized local variables in a function scope.
      */
     public boolean isParameter() {
-        return isInitialized && isLocal() && isFinal;
+        if (!isInitialized || isField()) {
+            return false;
+        }
+        
+        // Check if this variable is in a function scope
+        if (scope != null && scope.getEnclosingMethod() != null) {
+            // Check if it's defined at the function scope level
+            return scope.getParent() != null && 
+                   scope.getEnclosingMethod().getFunctionScope() == scope;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check if this variable can be accessed from a given context.
+     */
+    public boolean isAccessibleFrom(ClassSymbol fromClass, boolean isStatic) {
+        // Local variables and parameters are always accessible within their scope
+        if (isLocal() || isParameter()) {
+            return true;
+        }
+        
+        // Static context check
+        if (isStatic && !this.isStatic) {
+            return false;
+        }
+        
+        // Public members are always accessible
+        if (visibility == Visibility.PUBLIC) {
+            return true;
+        }
+        
+        // Private members are only accessible within the same class
+        if (visibility == Visibility.PRIVATE) {
+            ClassSymbol ownerClass = getOwnerClass();
+            return ownerClass != null && ownerClass == fromClass;
+        }
+        
+        // Protected members are accessible within the same class or subclasses
+        if (visibility == Visibility.PROTECTED) {
+            ClassSymbol ownerClass = getOwnerClass();
+            if (ownerClass == null) return false;
+            
+            if (ownerClass == fromClass) return true;
+            
+            // Check if fromClass is a subclass of ownerClass
+            ClassSymbol current = fromClass;
+            while (current != null) {
+                if (current == ownerClass) return true;
+                current = current.getSuperClass();
+            }
+            
+            return false;
+        }
+        
+        // Default (package) visibility - for simplicity, treat as public
+        return true;
+    }
+    
+    /**
+     * Get the class that owns this field.
+     */
+    private ClassSymbol getOwnerClass() {
+        if (scope != null) {
+            return scope.getEnclosingClass();
+        }
+        return null;
+    }
+    
+    @Override
+    protected String getSymbolKind() {
+        if (isParameter()) return "parameter";
+        if (isField()) return "field";
+        return "variable";
     }
     
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         
-        if (visibility == Visibility.PUBLIC) {
-            sb.append("public ");
-        } else if (visibility == Visibility.PRIVATE) {
-            sb.append("private ");
-        } else if (visibility == Visibility.PROTECTED) {
-            sb.append("protected ");
+        // Visibility (for fields)
+        if (isField() && visibility != Visibility.DEFAULT) {
+            sb.append(visibility.getKeyword()).append(" ");
         }
         
+        // Modifiers
         if (isStatic) {
             sb.append("static ");
         }
@@ -106,10 +209,12 @@ public class VariableSymbol extends Symbol {
             sb.append("final ");
         }
         
+        // Type and name
         sb.append(type.getName()).append(" ").append(name);
         
-        if (isInitialized) {
-            sb.append(" (initialized)");
+        // Initialization status
+        if (!isInitialized && isFinal) {
+            sb.append(" (uninitialized)");
         }
         
         return sb.toString();
