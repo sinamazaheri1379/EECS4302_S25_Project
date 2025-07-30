@@ -22,8 +22,7 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     private Stack<Boolean> loopStack = new Stack<>();
     private Set<VariableSymbol> initializedVars = new HashSet<>();
     private List<SemanticError> errors = new ArrayList<>();
-    private Map<String, VariableSymbol> localVariables = new HashMap<>();
-    
+    private Stack<ReturnTracker> returnTrackers = new Stack<>();
     // Enhanced Return Tracking
     private class ReturnPath {
         boolean hasReturn = false;
@@ -86,12 +85,10 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
             return currentPath.hasReturn;
         }
         
-        boolean hasAnyReturn() {
-            return !unconditionalReturns.isEmpty() || currentPath.hasReturn;
-        }
+       
     }
     
-    private Stack<ReturnTracker> returnTrackers = new Stack<>();
+    
     
     public TypeChecker(Scope globalScope) {
         this.globalScope = globalScope;
@@ -196,9 +193,7 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     public Type visitFieldDecl(FieldDeclContext ctx) {
         if (ctx == null) return null;
         
-        boolean isStatic = ctx.STATIC() != null;
-        boolean isFinal = ctx.FINAL() != null;
-        
+        boolean isStatic = ctx.STATIC() != null;        
         // Visit variable declaration
         boolean wasStatic = inStaticContext;
         if (isStatic) {
@@ -245,21 +240,7 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         return null;
     }
     
-    @Override
-    public Type visitMethodDecl(MethodDeclContext ctx) {
-        boolean wasStatic = inStaticContext;
-        MethodSymbol method = // ... get method symbol
-        
-        if (method.isStatic()) {
-            inStaticContext = true;
-        }
-        
-        // Visit method body
-        Type result = super.visitMethodDecl(ctx);
-        
-        inStaticContext = wasStatic;
-        return result;
-    }
+ 
     
     @Override
     public Type visitConstructor(ConstructorContext ctx) {
@@ -310,22 +291,513 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
             return null;
         }
         
-        // Set current method context (constructors don't have return tracking)
+        // Set current method context
         MethodSymbol previousMethod = currentMethod;
         currentMethod = null; // Constructors are not methods
         Scope previousScope = currentScope;
         currentScope = constructor.getConstructorScope();
         
+        // Special handling for constructor returns
+        // Push a special return tracker that expects void returns only
+        ReturnTracker tracker = new ReturnTracker() {
+            @Override
+            void addReturn(Token token, Type type) {
+                // Constructors can only have void returns
+                if (type != null && !type.equals(PrimitiveType.VOID)) {
+                    addError(token,
+                        "Constructor cannot return a value",
+                        SemanticError.ErrorType.TYPE_MISMATCH);
+                }
+                // Don't track the return for path analysis since constructors
+                // don't need to return on all paths
+            }
+        };
+        returnTrackers.push(tracker);
+        
         // Visit block
         visit(ctx.block());
         
-        // Restore previous context
+        // Clean up
         currentMethod = previousMethod;
         currentScope = previousScope;
         
+        // Return the constructor's type (for consistency, though rarely used)
+        return constructor.getType();
+    }
+ // 1. Import Declaration
+    @Override
+    public Type visitImportDecl(ImportDeclContext ctx) {
+        // Imports are handled during symbol table building
         return null;
     }
-    
+
+    // 2. Generic Declaration Dispatcher
+    @Override
+    public Type visitDeclaration(DeclarationContext ctx) {
+        if (ctx == null) return null;
+        // ANTLR will dispatch to specific declaration type
+        return visitChildren(ctx);
+    }
+
+    // 3. Generic Statement Dispatcher
+    @Override
+    public Type visitStatement(StatementContext ctx) {
+        if (ctx == null) return null;
+        // ANTLR will dispatch to specific statement type
+        return visitChildren(ctx);
+    }
+
+    // 4. Local Variable Declaration Statement
+    @Override
+    public Type visitLocalVarDeclStmt(LocalVarDeclStmtContext ctx) {
+        if (ctx == null || ctx.localVarDecl() == null) return null;
+        return visit(ctx.localVarDecl());
+    }
+
+    // 5. For-Each Statement
+    @Override
+    public Type visitForEachStmt(ForEachStmtContext ctx) {
+        if (ctx == null || ctx.type() == null || ctx.ID() == null || ctx.expr() == null) {
+            return null;
+        }
+        
+        // Create new scope for loop variable
+        Scope loopScope = new Scope("foreach", currentScope);
+        Scope previousScope = currentScope;
+        currentScope = loopScope;
+        
+        // Get iterator type
+        Type collectionType = visit(ctx.expr());
+        Type elementType = visit(ctx.type());
+        
+        // Verify collection is iterable (simplified: must be array)
+        if (!(collectionType instanceof ArrayType)) {
+            addError(ctx.expr().getStart(),
+                "For-each requires array type, found " + collectionType.getName(),
+                SemanticError.ErrorType.TYPE_MISMATCH);
+        } else {
+            ArrayType arrayType = (ArrayType) collectionType;
+            if (!TypeCompatibility.isAssignmentCompatible(elementType, arrayType.getElementType())) {
+                addError(ctx.type().getStart(),
+                    "Cannot iterate over " + arrayType.getName() + " with element type " + elementType.getName(),
+                    SemanticError.ErrorType.TYPE_MISMATCH);
+            }
+        }
+        
+        // Process body
+        loopStack.push(true);
+        if (ctx.statement() != null) {
+            visit(ctx.statement());
+        }
+        loopStack.pop();
+        
+        currentScope = previousScope;
+        return null;
+    }
+
+    // 6. Do-While Statement
+    @Override
+    public Type visitDoWhileStmt(DoWhileStmtContext ctx) {
+        if (ctx == null || ctx.statement() == null || ctx.expr() == null) {
+            return null;
+        }
+        
+        // Process body first
+        loopStack.push(true);
+        visit(ctx.statement());
+        loopStack.pop();
+        
+        // Then check condition
+        Type condType = visit(ctx.expr());
+        if (condType != null && !condType.equals(PrimitiveType.BOOLEAN)) {
+            addError(ctx.expr().getStart(),
+                "Do-while condition must be boolean, found " + condType.getName(),
+                SemanticError.ErrorType.TYPE_MISMATCH);
+        }
+        
+        return null;
+    }
+
+    // 7. Block Statement
+    @Override
+    public Type visitBlockStmt(BlockStmtContext ctx) {
+        if (ctx == null || ctx.block() == null) return null;
+        return visit(ctx.block());
+    }
+
+    // 8. Empty Statement
+    @Override
+    public Type visitEmptyStmt(EmptyStmtContext ctx) {
+        // Empty statement - nothing to check
+        return null;
+    }
+
+    // 9. Logical AND
+    @Override
+    public Type visitAnd(AndContext ctx) {
+        if (ctx == null || ctx.expr(0) == null || ctx.expr(1) == null) {
+            return ErrorType.getInstance();
+        }
+        
+        Type leftType = visit(ctx.expr(0));
+        Type rightType = visit(ctx.expr(1));
+        
+        if (leftType != null && !leftType.equals(PrimitiveType.BOOLEAN)) {
+            addError(ctx.expr(0).getStart(),
+                "Operator && requires boolean operands, found " + leftType.getName(),
+                SemanticError.ErrorType.TYPE_MISMATCH);
+        }
+        
+        if (rightType != null && !rightType.equals(PrimitiveType.BOOLEAN)) {
+            addError(ctx.expr(1).getStart(),
+                "Operator && requires boolean operands, found " + rightType.getName(),
+                SemanticError.ErrorType.TYPE_MISMATCH);
+        }
+        
+        return PrimitiveType.BOOLEAN;
+    }
+
+    // 10. Logical OR
+    @Override
+    public Type visitOr(OrContext ctx) {
+        if (ctx == null || ctx.expr(0) == null || ctx.expr(1) == null) {
+            return ErrorType.getInstance();
+        }
+        
+        Type leftType = visit(ctx.expr(0));
+        Type rightType = visit(ctx.expr(1));
+        
+        if (leftType != null && !leftType.equals(PrimitiveType.BOOLEAN)) {
+            addError(ctx.expr(0).getStart(),
+                "Operator || requires boolean operands, found " + leftType.getName(),
+                SemanticError.ErrorType.TYPE_MISMATCH);
+        }
+        
+        if (rightType != null && !rightType.equals(PrimitiveType.BOOLEAN)) {
+            addError(ctx.expr(1).getStart(),
+                "Operator || requires boolean operands, found " + rightType.getName(),
+                SemanticError.ErrorType.TYPE_MISMATCH);
+        }
+        
+        return PrimitiveType.BOOLEAN;
+    }
+
+    // 11. Ternary Operator
+    @Override
+    public Type visitTernary(TernaryContext ctx) {
+        if (ctx == null || ctx.expr(0) == null || ctx.expr(1) == null || ctx.expr(2) == null) {
+            return ErrorType.getInstance();
+        }
+        
+        Type condType = visit(ctx.expr(0));
+        Type trueType = visit(ctx.expr(1));
+        Type falseType = visit(ctx.expr(2));
+        
+        if (condType != null && !condType.equals(PrimitiveType.BOOLEAN)) {
+            addError(ctx.expr(0).getStart(),
+                "Ternary condition must be boolean, found " + condType.getName(),
+                SemanticError.ErrorType.TYPE_MISMATCH);
+        }
+        
+        // Result type is the common type of true and false branches
+        if (trueType != null && falseType != null) {
+            if (trueType.equals(falseType)) {
+                return trueType;
+            } else if (TypeCompatibility.isAssignmentCompatible(trueType, falseType)) {
+                return trueType;
+            } else if (TypeCompatibility.isAssignmentCompatible(falseType, trueType)) {
+                return falseType;
+            } else {
+                addError(ctx.expr(1).getStart(),
+                    "Incompatible types in ternary expression: " + trueType.getName() + 
+                    " and " + falseType.getName(),
+                    SemanticError.ErrorType.TYPE_MISMATCH);
+            }
+        }
+        
+        return trueType != null ? trueType : falseType;
+    }
+
+    // 12. Super Expression
+    @Override
+    public Type visitSuperExpr(SuperExprContext ctx) {
+        if (currentClass == null) {
+            addError(ctx.SUPER().getSymbol(),
+                "Cannot use 'super' outside of a class",
+                SemanticError.ErrorType.INVALID_SUPER);
+            return ErrorType.getInstance();
+        }
+        
+        if (currentClass.getSuperClass() == null) {
+            addError(ctx.SUPER().getSymbol(),
+                "Cannot use 'super' in a class with no superclass",
+                SemanticError.ErrorType.INVALID_SUPER);
+            return ErrorType.getInstance();
+        }
+        
+        if (inStaticContext) {
+            addError(ctx.SUPER().getSymbol(),
+                "Cannot use 'super' in static context",
+                SemanticError.ErrorType.STATIC_CONTEXT_ERROR);
+            return ErrorType.getInstance();
+        }
+        
+        return currentClass.getSuperClass().getType();
+    }
+
+    // 13. InstanceOf Expression
+    @Override
+    public Type visitInstanceOfExpr(InstanceOfExprContext ctx) {
+        if (ctx == null || ctx.expr() == null || ctx.classType() == null) {
+            return ErrorType.getInstance();
+        }
+        
+        Type exprType = visit(ctx.expr());
+        
+        if (exprType != null && !(exprType instanceof ClassType) && !(exprType instanceof NullType)) {
+            addError(ctx.expr().getStart(),
+                "instanceof requires reference type, found " + exprType.getName(),
+                SemanticError.ErrorType.TYPE_MISMATCH);
+        }
+        
+        return PrimitiveType.BOOLEAN;
+    }
+
+    // 14. Cast Expression
+    @Override
+    public Type visitCastExpr(CastExprContext ctx) {
+        if (ctx == null || ctx.type() == null || ctx.expr() == null) {
+            return ErrorType.getInstance();
+        }
+        
+        Type targetType = visit(ctx.type());
+        Type exprType = visit(ctx.expr());
+        
+        if (targetType != null && exprType != null) {
+            if (!TypeCompatibility.isCastable(targetType, exprType)) {
+                addError(ctx.type().getStart(),
+                    "Cannot cast " + exprType.getName() + " to " + targetType.getName(),
+                    SemanticError.ErrorType.TYPE_MISMATCH);
+            }
+        }
+        
+        return targetType;
+    }
+
+    // 15. New Array with Initializer
+    @Override
+    public Type visitNewArrayWithInit(NewArrayWithInitContext ctx) {
+        if (ctx == null || ctx.type() == null || ctx.arrayInitializer() == null) {
+            return ErrorType.getInstance();
+        }
+        
+        Type elementType = visit(ctx.type());
+        visit(ctx.arrayInitializer());
+        
+        return new ArrayType(elementType);
+    }
+
+    // 16. Primary Expression
+    @Override
+    public Type visitPrimaryExpr(PrimaryExprContext ctx) {
+        if (ctx == null || ctx.primary() == null) return ErrorType.getInstance();
+        return visit(ctx.primary());
+    }
+
+    // 17. Literal Primary
+    @Override
+    public Type visitLiteralPrimary(LiteralPrimaryContext ctx) {
+        if (ctx == null || ctx.literal() == null) return ErrorType.getInstance();
+        return visit(ctx.literal());
+    }
+
+    // 18. Boolean Literal (wrapper)
+    @Override
+    public Type visitBooleanLiteral(BooleanLiteralContext ctx) {
+        if (ctx == null || ctx.boolLiteral() == null) return ErrorType.getInstance();
+        return visit(ctx.boolLiteral());
+    }
+
+    // 19. Initializer
+    @Override
+    public Type visitInitializer(InitializerContext ctx) {
+        if (ctx == null) return ErrorType.getInstance();
+        
+        if (ctx.expr() != null) {
+            return visit(ctx.expr());
+        } else if (ctx.arrayInitializer() != null) {
+            return visit(ctx.arrayInitializer());
+        }
+        
+        return ErrorType.getInstance();
+    }
+
+    // 20. Array Initializer
+    @Override
+    public Type visitArrayInitializer(ArrayInitializerContext ctx) {
+        if (ctx == null) return ErrorType.getInstance();
+        
+        Type elementType = null;
+        
+        // Check all initializers have compatible types
+        for (var init : ctx.initializer()) {
+            Type initType = visit(init);
+            
+            if (elementType == null) {
+                elementType = initType;
+            } else if (initType != null && !TypeCompatibility.isAssignmentCompatible(elementType, initType)) {
+                addError(init.getStart(),
+                    "Array initializer type mismatch: expected " + elementType.getName() + 
+                    ", found " + initType.getName(),
+                    SemanticError.ErrorType.TYPE_MISMATCH);
+            }
+        }
+        
+        return new ArrayType(elementType != null ? elementType : ErrorType.getInstance());
+    }
+
+    // 21. Parameter List
+    @Override
+    public Type visitParamList(ParamListContext ctx) {
+        if (ctx == null) return null;
+        
+        for (var param : ctx.param()) {
+            visit(param);
+        }
+        
+        return null;
+    }
+
+    // 22. Parameter
+    @Override
+    public Type visitParam(ParamContext ctx) {
+        if (ctx == null) return null;
+        return visit(ctx.type());
+    }
+
+    // 23. Type
+    @Override
+    public Type visitType(TypeContext ctx) {
+        if (ctx == null) return ErrorType.getInstance();
+        
+        Type baseType = null;
+        
+        if (ctx.primitiveType() != null) {
+            baseType = visit(ctx.primitiveType());
+        } else if (ctx.classType() != null) {
+            baseType = visit(ctx.classType());
+        }
+        
+        if (baseType == null) {
+            return ErrorType.getInstance();
+        }
+        
+        // Handle array dimensions
+        Type result = baseType;
+        for (int i = 0; i < ctx.getChildCount(); i++) {
+            ParseTree child = ctx.getChild(i);
+            if (child instanceof TerminalNode) {
+                TerminalNode terminal = (TerminalNode) child;
+                if (terminal.getSymbol().getType() == TypeCheckerParser.LBRACK) {
+                    result = new ArrayType(result);
+                }
+            }
+        }
+        
+        return result;
+    }
+
+    // 24. For Initialization
+    @Override
+    public Type visitForInit(ForInitContext ctx) {
+        if (ctx == null) return null;
+        
+        if (ctx.varDeclarator() != null && !ctx.varDeclarator().isEmpty()) {
+            // Variable declaration in for loop
+            Type type = visit(ctx.type());
+            for (var declarator : ctx.varDeclarator()) {
+                // Process each declarator
+                visit(declarator);
+            }
+        } else if (ctx.exprList() != null) {
+            // Expression list
+            visit(ctx.exprList());
+        }
+        
+        return null;
+    }
+
+    // 25. For Update
+    @Override
+    public Type visitForUpdate(ForUpdateContext ctx) {
+        if (ctx == null || ctx.exprList() == null) return null;
+        return visit(ctx.exprList());
+    }
+
+    // 26. Expression List
+    @Override
+    public Type visitExprList(ExprListContext ctx) {
+        if (ctx == null) return null;
+        
+        for (var expr : ctx.expr()) {
+            visit(expr);
+        }
+        
+        return null;
+    }
+
+    // 27. Switch Case
+    @Override
+    public Type visitSwitchCase(SwitchCaseContext ctx) {
+        if (ctx == null) return null;
+        
+        if (ctx.switchLabel() != null) {
+            visit(ctx.switchLabel());
+        }
+        
+        for (var stmt : ctx.statement()) {
+            visit(stmt);
+        }
+        
+        return null;
+    }
+
+    // 28. Switch Label
+    @Override
+    public Type visitSwitchLabel(SwitchLabelContext ctx) {
+        if (ctx == null) return null;
+        
+        // Labels are checked in visitSwitchStmt
+        return null;
+    }
+
+    // 29. Argument List
+    @Override
+    public Type visitArgList(ArgListContext ctx) {
+        if (ctx == null) return null;
+        
+        for (var expr : ctx.expr()) {
+            visit(expr);
+        }
+        
+        return null;
+    }
+ // When you need to get a token from ParseTree:
+    private Token getStartToken(ParseTree tree) {
+        if (tree instanceof ParserRuleContext) {
+            return ((ParserRuleContext) tree).getStart();
+        } else if (tree instanceof TerminalNode) {
+            return ((TerminalNode) tree).getSymbol();
+        }
+        return null;
+    }
+
+    // 30. Visibility
+    @Override
+    public Type visitVisibility(VisibilityContext ctx) {
+        // Visibility is handled during symbol table building
+        return null;
+    }
     // Function/Method visitors
     
     @Override
@@ -799,7 +1271,6 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         if (ctx == null || ctx.varDecl() == null) return null;
         
         boolean isFinal = ctx.FINAL() != null;
-        // Remove unused: boolean isFinal = ctx.FINAL() != null;
         
         Type type = visit(ctx.varDecl());
         VarDeclContext varDecl = ctx.varDecl();
@@ -1457,11 +1928,13 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         return exprType;
     }
 
-    // Helper method to check if an expression is an lvalue
+ // Helper method to check if an expression is an lvalue
     private boolean isLvalueExpression(ExprContext expr) {
-        return expr instanceof VarRefContext ||
-               expr instanceof FieldAccessContext ||
-               expr instanceof ArrayAccessContext;
+        // Use instanceof checks on the actual runtime type
+        if (expr instanceof VarRefContext) return true;
+        if (expr instanceof FieldAccessContext) return true;
+        if (expr instanceof ArrayAccessContext) return true;
+        return false;
     }
  // Fix visitParenExpr method:
     @Override
@@ -1561,7 +2034,31 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         
         return null;
     }
-    
+ // Helper to check if lvalue is assignable
+    private boolean isAssignableLvalue(LvalueContext lvalue) {
+        if (lvalue instanceof VarLvalueContext) {
+            VarLvalueContext varLvalue = (VarLvalueContext) lvalue;
+            Symbol symbol = currentScope.resolve(varLvalue.ID().getText());
+            if (symbol instanceof VariableSymbol) {
+                VariableSymbol var = (VariableSymbol) symbol;
+                return !var.isFinal() || !var.isInitialized();
+            }
+        }
+        return true; // Field and array access are assignable
+    }
+
+    // Helper to get type from TypeContext
+    private Type getType(TypeContext ctx) {
+        if (ctx == null) return ErrorType.getInstance();
+        return visit(ctx);
+    }
+
+    // Add missing varDeclarator visitor
+    @Override
+    public Type visitVarDeclarator(VarDeclaratorContext ctx) {
+        // Handled in visitVarDecl
+        return null;
+    }
     @Override
     public Type visitClassType(ClassTypeContext ctx) {
         if (ctx == null || ctx.ID() == null) return ErrorType.getInstance();

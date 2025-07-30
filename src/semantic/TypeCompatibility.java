@@ -9,6 +9,47 @@ public class TypeCompatibility {
      * Check if a value of type 'from' can be assigned to a variable of type 'to'.
      * This handles widening conversions, null assignments, and inheritance.
      */
+	// In TypeCompatibility.java, add:
+	public static boolean isCastable(Type targetType, Type sourceType) {
+	    // Same type - always castable
+	    if (targetType.equals(sourceType)) {
+	        return true;
+	    }
+	    
+	    // Null can be cast to any reference type
+	    if (sourceType instanceof NullType && 
+	        (targetType instanceof ClassType || targetType instanceof ArrayType)) {
+	        return true;
+	    }
+	    
+	    // Numeric conversions
+	    if (isNumeric(targetType) && isNumeric(sourceType)) {
+	        return true;
+	    }
+	    
+	    // Class hierarchy casts
+	    if (targetType instanceof ClassType && sourceType instanceof ClassType) {
+	        ClassType targetClass = (ClassType) targetType;
+	        ClassType sourceClass = (ClassType) sourceType;
+	        
+	        // Check if there's a relationship in the hierarchy
+	        return isSubtypeOf(sourceClass, targetClass) || 
+	               isSubtypeOf(targetClass, sourceClass);
+	    }
+	    
+	    // Array casts
+	    if (targetType instanceof ArrayType && sourceType instanceof ArrayType) {
+	        ArrayType targetArray = (ArrayType) targetType;
+	        ArrayType sourceArray = (ArrayType) sourceType;
+	        
+	        // Can cast between arrays if element types are castable
+	        return isCastable(targetArray.getElementType(), sourceArray.getElementType());
+	    }
+	    
+	    // No valid cast
+	    return false;
+	}
+	
     public static boolean isAssignmentCompatible(Type to, Type from) {
         // Null check
         if (to == null || from == null) {
