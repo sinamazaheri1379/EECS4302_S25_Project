@@ -29,8 +29,10 @@ public abstract class Symbol {
     public void setScope(Scope scope) { this.scope = scope; }
     public void setType(Type type) { this.type = type; }
     public void setSymbolTable(SymbolTable symbolTable) {this.symbolTable = symbolTable;}
+    
     /**
      * Get the fully qualified name of this symbol.
+     * Fixed: Added null safety checks to prevent NPE
      */
     public String getQualifiedName() {
         if (scope == null || scope.getParent() == null) {
@@ -49,6 +51,7 @@ public abstract class Symbol {
     
     /**
      * Recursively build qualified name from scope hierarchy.
+     * Fixed: Added null safety check for enclosingClass
      */
     private void buildQualifiedName(StringBuilder sb, Scope currentScope) {
         if (currentScope == null || currentScope.getParent() == null) {
@@ -56,12 +59,18 @@ public abstract class Symbol {
         }
         
         // Find the symbol that owns this scope
-        if (currentScope.getEnclosingClass() != null) {
-            buildQualifiedName(sb, currentScope.getEnclosingClass().getScope());
+        ClassSymbol enclosingClass = currentScope.getEnclosingClass();
+        if (enclosingClass != null) {
+            // Recursively build parent's qualified name
+            Scope parentScope = enclosingClass.getScope();
+            if (parentScope != null) {
+                buildQualifiedName(sb, parentScope);
+            }
+            
             if (sb.length() > 0) {
                 sb.append(".");
             }
-            sb.append(currentScope.getEnclosingClass().getName());
+            sb.append(enclosingClass.getName());
         }
     }
     
@@ -92,6 +101,10 @@ public abstract class Symbol {
         return name + ": " + (type != null ? type.toString() : "null");
     }
     
+    /**
+     * Fixed: More robust equality check using qualified names
+     * Two symbols are equal if they have the same name and are in the same logical scope
+     */
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
@@ -99,17 +112,27 @@ public abstract class Symbol {
         
         Symbol symbol = (Symbol) obj;
         
-        // Symbols are equal if they have the same name and scope
+        // First check if names are equal
         if (!name.equals(symbol.name)) return false;
         
-        // For scope comparison, use object identity
-        return scope == symbol.scope;
+        // For symbols in the same scope object, they're equal
+        if (scope == symbol.scope) return true;
+        
+        // For symbols in different scope objects, compare qualified names
+        // This handles cases where scopes are recreated but represent the same logical scope
+        String thisQualified = getQualifiedName();
+        String otherQualified = symbol.getQualifiedName();
+        
+        return thisQualified.equals(otherQualified);
     }
     
+    /**
+     * Fixed: Hash code now consistent with equals()
+     */
     @Override
     public int hashCode() {
-        int result = name.hashCode();
-        result = 31 * result + (scope != null ? System.identityHashCode(scope) : 0);
-        return result;
+        // Use qualified name for hash code to be consistent with equals()
+        String qualified = getQualifiedName();
+        return qualified.hashCode();
     }
 }

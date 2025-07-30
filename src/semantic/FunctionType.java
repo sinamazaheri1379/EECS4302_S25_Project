@@ -102,35 +102,14 @@ public class FunctionType implements Type {
     }
     
     /**
-     * Check if this function type is compatible with another.
-     * Used for function pointer assignments.
+     * Fixed: Check if this function type is compatible with another.
+     * Consistent with TypeCompatibility - no contravariance for simplicity.
+     * Note: This method is kept for backward compatibility but delegates
+     * to TypeCompatibility for the actual logic.
      */
     public boolean isCompatibleWith(FunctionType other) {
-        // Check return type compatibility (covariant)
-        if (!TypeCompatibility.isAssignmentCompatible(
-                this.returnType, other.returnType)) {
-            return false;
-        }
-        
-        // Check parameter count
-        if (this.parameterTypes.size() != other.parameterTypes.size()) {
-            return false;
-        }
-        
-        // Check parameter types (contravariant)
-        for (int i = 0; i < parameterTypes.size(); i++) {
-            if (!TypeCompatibility.isAssignmentCompatible(
-                    other.parameterTypes.get(i), this.parameterTypes.get(i))) {
-                return false;
-            }
-        }
-        
-        // Check varargs compatibility
-        if (this.isVarArgs != other.isVarArgs) {
-            return false;
-        }
-        
-        return true;
+        // Delegate to TypeCompatibility for consistency
+        return TypeCompatibility.isAssignmentCompatible(this, other);
     }
     
     @Override

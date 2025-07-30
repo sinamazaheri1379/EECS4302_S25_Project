@@ -1,0 +1,165 @@
+// Test generic types (if implementing generics support)
+// NOTE: This requires grammar extension to support <T> syntax
+
+/*
+// Generic class definition
+class Box<T> {
+    private T value;
+    
+    public Box(T val) {
+        this.value = val;
+    }
+    
+    public T getValue() {
+        return value;
+    }
+    
+    public void setValue(T val) {
+        this.value = val;
+    }
+}
+
+// Generic class with multiple type parameters
+class Pair<K, V> {
+    private K key;
+    private V value;
+    
+    public Pair(K k, V v) {
+        this.key = k;
+        this.value = v;
+    }
+    
+    public K getKey() { return key; }
+    public V getValue() { return value; }
+}
+
+// Generic methods
+class GenericMethods {
+    // Generic method
+    public static <T> void swap(T[] array, int i, int j) {
+        T temp = array[i];
+        array[i] = array[j];
+        array[j] = temp;
+    }
+    
+    // Bounded type parameters
+    public static <T extends Comparable<T>> T max(T a, T b) {
+        return a.compareTo(b) > 0 ? a : b;
+    }
+}
+
+// Generic interface
+interface List<E> {
+    void add(E element);
+    E get(int index);
+    int size();
+}
+
+// Implementation of generic interface
+class ArrayList<E> implements List<E> {
+    private E[] elements;
+    private int size;
+    
+    public ArrayList() {
+        this.elements = new E[10];  // Type erasure issue
+        this.size = 0;
+    }
+    
+    public void add(E element) {
+        if (size < elements.length) {
+            elements[size++] = element;
+        }
+    }
+    
+    public E get(int index) {
+        if (index >= 0 && index < size) {
+            return elements[index];
+        }
+        return null;
+    }
+    
+    public int size() {
+        return size;
+    }
+}
+
+int main() {
+    // Using generic classes
+    Box<int> intBox = new Box<int>(42);
+    Box<string> strBox = new Box<string>("Hello");
+    
+    int val = intBox.getValue();
+    string str = strBox.getValue();
+    
+    // Type safety
+    // string wrongType = intBox.getValue();  // Type error
+    
+    // Using Pair
+    Pair<string, int> nameAge = new Pair<string, int>("Alice", 25);
+    string name = nameAge.getKey();
+    int age = nameAge.getValue();
+    
+    // Using generic methods
+    int[] numbers = {3, 1, 4, 1, 5};
+    GenericMethods.swap(numbers, 0, 4);
+    
+    // Using generic collections
+    List<string> names = new ArrayList<string>();
+    names.add("Bob");
+    names.add("Charlie");
+    string first = names.get(0);
+    
+    // Wildcard types (if supported)
+    // Box<?> unknownBox = new Box<string>("Mystery");
+    // Box<? extends Number> numBox = new Box<int>(123);
+    
+    print("Int box: " + val);
+    print("String box: " + str);
+    print("First name: " + first);
+    
+    return 0;
+}
+*/
+
+// Placeholder until generics are implemented
+class NonGenericBox {
+    private int intValue;
+    private string stringValue;
+    private boolean isInt;
+    
+    public NonGenericBox(int val) {
+        this.intValue = val;
+        this.isInt = true;
+    }
+    
+    public NonGenericBox(string val) {
+        this.stringValue = val;
+        this.isInt = false;
+    }
+    
+    public int getInt() {
+        if (!isInt) {
+            print("Error: Box contains string, not int");
+        }
+        return intValue;
+    }
+    
+    public string getString() {
+        if (isInt) {
+            print("Error: Box contains int, not string");
+        }
+        return stringValue;
+    }
+}
+
+int main() {
+    print("Generics test placeholder - awaiting implementation");
+    
+    NonGenericBox intBox = new NonGenericBox(42);
+    NonGenericBox strBox = new NonGenericBox("Hello");
+    
+    print("Int value: " + intBox.getInt());
+    print("String value: " + strBox.getString());
+    
+    return 0;
+}

@@ -35,11 +35,9 @@ public class TypeCompatibility {
             return true;
         }
         
-        // String concatenation special case (if supported)
-        if (to.equals(PrimitiveType.STRING)) {
-            // Any type can be converted to string for concatenation
-            return true;
-        }
+        // Fixed: String conversion is now more restrictive
+        // Only allow explicit string conversions in specific contexts (like concatenation)
+        // Not for general assignment compatibility
         
         // Array type compatibility
         if (to instanceof ArrayType && from instanceof ArrayType) {
@@ -67,7 +65,107 @@ public class TypeCompatibility {
     }
     
     /**
+     * Check if a type can be converted to string in a string context.
+     * This is separate from assignment compatibility and is used for:
+     * - String concatenation operations
+     * - Print statements
+     * - Explicit string conversion contexts
+     */
+    public static boolean canConvertToString(Type type) {
+        // Null check
+        if (type == null) {
+            return false;
+        }
+        
+        // Error types cannot be converted
+        if (type instanceof ErrorType) {
+            return false;
+        }
+        
+        // All primitive types can be converted to string
+        if (type instanceof PrimitiveType) {
+            return true;
+        }
+        
+        // Reference types can be converted if they have toString() method
+        // (In Java, all objects have toString, but this could be configurable)
+        if (type instanceof ClassType || type instanceof ArrayType) {
+            return true;
+        }
+        
+        // Null can be converted to string (as "null")
+        if (type instanceof NullType) {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Fixed: Function type compatibility with consistent approach
+     * No contravariance for parameter types (kept simple as stated)
+     */
+    private static boolean isFunctionCompatible(FunctionType to, FunctionType from) {
+        // Return type must be compatible (covariant)
+        if (!isAssignmentCompatible(to.getReturnType(), from.getReturnType())) {
+            return false;
+        }
+        
+        // Parameter types must match exactly (no contravariance for simplicity)
+        if (to.getParameterTypes().size() != from.getParameterTypes().size()) {
+            return false;
+        }
+        
+        for (int i = 0; i < to.getParameterTypes().size(); i++) {
+            Type toParam = to.getParameterTypes().get(i);
+            Type fromParam = from.getParameterTypes().get(i);
+            
+            // Exact match required (no contravariance)
+            if (!toParam.equals(fromParam)) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
      * Check if two types can be compared for equality.
+     */
+    public static boolean areEqual(Type type1, Type type2) {
+        // Null check
+        if (type1 == null || type2 == null) {
+            return false;
+        }
+        
+        // Error types
+        if (type1 instanceof ErrorType || type2 instanceof ErrorType) {
+            return false;
+        }
+        
+        // Same type can be compared
+        if (type1.equals(type2)) {
+            return true;
+        }
+        
+        // Null can be compared with reference types
+        if ((type1 instanceof NullType && isReferenceType(type2)) ||
+            (type2 instanceof NullType && isReferenceType(type1))) {
+            return true;
+        }
+        
+        // Reference types in same hierarchy can be compared
+        if (type1 instanceof ClassType && type2 instanceof ClassType) {
+            ClassType class1 = (ClassType) type1;
+            ClassType class2 = (ClassType) type2;
+            return isSubtypeOf(class1, class2) || isSubtypeOf(class2, class1);
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check if two types can be compared (relational operators).
      */
     public static boolean areComparable(Type type1, Type type2) {
         // Null check
@@ -169,29 +267,6 @@ public class TypeCompatibility {
     }
     
     /**
-     * Check if two function types are compatible.
-     */
-    private static boolean isFunctionCompatible(FunctionType to, FunctionType from) {
-        // Return type must be compatible (covariant)
-        if (!isAssignmentCompatible(to.getReturnType(), from.getReturnType())) {
-            return false;
-        }
-        
-        // Parameter types must match exactly (no contravariance for simplicity)
-        if (to.getParameterTypes().size() != from.getParameterTypes().size()) {
-            return false;
-        }
-        
-        for (int i = 0; i < to.getParameterTypes().size(); i++) {
-            if (!to.getParameterTypes().get(i).equals(from.getParameterTypes().get(i))) {
-                return false;
-            }
-        }
-        
-        return true;
-    }
-    
-    /**
      * Get the common type for binary operations.
      * Used for arithmetic operations where type promotion occurs.
      */
@@ -215,7 +290,7 @@ public class TypeCompatibility {
             return PrimitiveType.INT;
         }
         
-        // String concatenation
+        // String concatenation - only when one operand is already string
         if (type1.equals(PrimitiveType.STRING) || type2.equals(PrimitiveType.STRING)) {
             return PrimitiveType.STRING;
         }
@@ -248,6 +323,9 @@ public class TypeCompatibility {
         return type instanceof PrimitiveType;
     }
     
+    /**
+     * Check if one primitive type can be promoted to another.
+     */
     public static boolean canPromote(PrimitiveType from, PrimitiveType to) {
         // int can be promoted to float
         if (from.equals(PrimitiveType.INT) && to.equals(PrimitiveType.FLOAT)) {
