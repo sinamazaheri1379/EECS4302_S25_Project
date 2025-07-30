@@ -20,35 +20,15 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     private boolean inStaticContext = false;
     private int loopDepth = 0;
     private Set<VariableSymbol> initializedVars = new HashSet<>();
-    private Set<VariableSymbol> conditionallyInitializedVars = new HashSet<>();
     private List<SemanticError> errors = new ArrayList<>();
     
     // Return tracking
     private class ReturnTracker {
         boolean hasDefiniteReturn = false;
-        boolean hasConditionalReturn = false;
-        Set<String> returnPaths = new HashSet<>();
-        List<ReturnInfo> returns = new ArrayList<>();
-        
-        static class ReturnInfo {
-            Token token;
-            Type type;
-            boolean isConditional;
-            
-            ReturnInfo(Token token, Type type, boolean isConditional) {
-                this.token = token;
-                this.type = type;
-                this.isConditional = isConditional;
-            }
-        }
+ 
         
         void addReturn(Token token, Type type, boolean conditional) {
-            returns.add(new ReturnInfo(token, type, conditional));
-            if (!conditional) {
-                hasDefiniteReturn = true;
-            } else {
-                hasConditionalReturn = true;
-            }
+        	hasDefiniteReturn = true;
         }
         
         boolean allPathsReturn() {
@@ -676,6 +656,46 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     }
     
     @Override
+    public Type visitLocalVarDecl(LocalVarDeclContext ctx) {
+        if (ctx == null || ctx.varDecl() == null) return null;
+        
+        boolean isFinal = ctx.FINAL() != null;
+        // Remove unused: boolean isFinal = ctx.FINAL() != null;
+        
+        Type type = visit(ctx.varDecl());
+        VarDeclContext varDecl = ctx.varDecl();
+        Type varType = getType(varDecl.type());
+        
+        for (var declarator : varDecl.varDeclarator()) {
+            String varName = declarator.ID().getText();
+            Symbol symbol = currentScope.resolve(varName);
+            
+            if (symbol instanceof VariableSymbol) {
+                VariableSymbol var = (VariableSymbol) symbol;
+                
+                // Process initializer
+                if (declarator.initializer() != null) {
+                    Type initType = visit(declarator.initializer());
+                    if (initType != null && !TypeCompatibility.isAssignmentCompatible(varType, initType)) {
+                        addError(declarator.initializer().getStart(),
+                            "Cannot initialize " + varType.getName() + " with " + initType.getName(),
+                            SemanticError.ErrorType.TYPE_MISMATCH);
+                    }
+                    var.setInitialized(true);
+                    initializedVars.add(var);
+                } else if (isFinal) {
+                    // Final variables must be initialized
+                    addError(declarator.ID().getSymbol(),
+                        "Final variable '" + varName + "' must be initialized",
+                        SemanticError.ErrorType.UNINITIALIZED_FINAL);
+                }
+            }
+        }
+        
+        return type;
+    }
+    
+    @Override
     public Type visitExprStmt(ExprStmtContext ctx) {
         if (ctx == null || ctx.expr() == null) return null;
         return visit(ctx.expr());
@@ -709,17 +729,17 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     
     @Override
     public Type visitFieldLvalue(FieldLvalueContext ctx) {
-        if (ctx == null || ctx.expr() == null || ctx.ID() == null) {
+        if (ctx == null || ctx.lvalue() == null || ctx.ID() == null) {
             return ErrorType.getInstance();
         }
         
-        Type objectType = visit(ctx.expr());
+        Type objectType = visit(ctx.lvalue());
         if (objectType == null || objectType instanceof ErrorType) {
             return ErrorType.getInstance();
         }
         
         if (!(objectType instanceof ClassType)) {
-            addError(ctx.expr().getStart(),
+            addError(ctx.lvalue().getStart(),
                 "Cannot access field of non-class type " + objectType.getName(),
                 SemanticError.ErrorType.TYPE_MISMATCH);
             return ErrorType.getInstance();
@@ -754,26 +774,26 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     
     @Override
     public Type visitArrayLvalue(ArrayLvalueContext ctx) {
-        if (ctx == null || ctx.expr(0) == null || ctx.expr(1) == null) {
+        if (ctx == null || ctx.lvalue() == null || ctx.expr() == null) {
             return ErrorType.getInstance();
         }
         
-        Type arrayType = visit(ctx.expr(0));
-        Type indexType = visit(ctx.expr(1));
+        Type arrayType = visit(ctx.lvalue());
+        Type indexType = visit(ctx.expr());
         
         if (arrayType == null || arrayType instanceof ErrorType) {
             return ErrorType.getInstance();
         }
         
         if (!(arrayType instanceof ArrayType)) {
-            addError(ctx.expr(0).getStart(),
+            addError(ctx.lvalue().getStart(),
                 "Cannot index non-array type " + arrayType.getName(),
                 SemanticError.ErrorType.TYPE_MISMATCH);
             return ErrorType.getInstance();
         }
         
         if (indexType != null && !indexType.equals(PrimitiveType.INT)) {
-            addError(ctx.expr(1).getStart(),
+            addError(ctx.expr().getStart(),
                 "Array index must be int, found " + indexType.getName(),
                 SemanticError.ErrorType.TYPE_MISMATCH);
         }
@@ -1118,22 +1138,23 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     
     @Override
     public Type visitBinaryExpr(BinaryExprContext ctx) {
-        if (ctx == null || ctx.expr(0) == null || ctx.expr(1) == null || ctx.op == null) {
+        if (ctx == null || ctx.expr(0) == null || ctx.expr(1) == null) {
             return ErrorType.getInstance();
         }
         
         Type leftType = visit(ctx.expr(0));
         Type rightType = visit(ctx.expr(1));
         
-        if (leftType == null || rightType == null ||
-            leftType instanceof ErrorType || rightType instanceof ErrorType) {
+        if (leftType == null || leftType instanceof ErrorType ||
+            rightType == null || rightType instanceof ErrorType) {
             return ErrorType.getInstance();
         }
         
         String op = ctx.op.getText();
         
         // Arithmetic operators
-        if (op.equals("+") || op.equals("-") || op.equals("*") || op.equals("/") || op.equals("%")) {
+        if (op.equals("*") || op.equals("/") || op.equals("%") || 
+            op.equals("+") || op.equals("-")) {
             if (!isNumericType(leftType)) {
                 addError(ctx.expr(0).getStart(),
                     "Operator '" + op + "' requires numeric type, found " + leftType.getName(),
@@ -1172,23 +1193,6 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
                     "Cannot compare " + leftType.getName() + " with " + rightType.getName(),
                     SemanticError.ErrorType.TYPE_MISMATCH);
             }
-            return PrimitiveType.BOOLEAN;
-        }
-        
-        // Logical operators
-        if (op.equals("&&") || op.equals("||")) {
-            if (!leftType.equals(PrimitiveType.BOOLEAN)) {
-                addError(ctx.expr(0).getStart(),
-                    "Operator '" + op + "' requires boolean type, found " + leftType.getName(),
-                    SemanticError.ErrorType.TYPE_MISMATCH);
-            }
-            
-            if (!rightType.equals(PrimitiveType.BOOLEAN)) {
-                addError(ctx.expr(1).getStart(),
-                    "Operator '" + op + "' requires boolean type, found " + rightType.getName(),
-                    SemanticError.ErrorType.TYPE_MISMATCH);
-            }
-            
             return PrimitiveType.BOOLEAN;
         }
         
@@ -1288,9 +1292,12 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         return currentClass.getType();
     }
     
+ // Fix visitParenExpr method:
     @Override
     public Type visitParenExpr(ParenExprContext ctx) {
-        if (ctx == null || ctx.expr() == null) return ErrorType.getInstance();
+        if (ctx == null || ctx.expr() == null) {
+            return ErrorType.getInstance();
+        }
         return visit(ctx.expr());
     }
     

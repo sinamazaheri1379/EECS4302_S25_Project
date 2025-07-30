@@ -63,10 +63,11 @@ public class SemanticError {
         // Array errors
         INVALID_ARRAY_SIZE("Invalid array size"),
         ARRAY_INDEX_TYPE("Invalid array index type"),
-        
+        VISIBILITY_VIOLATION("Visibility violation"),
         // Internal errors
         INTERNAL_ERROR("Internal compiler error");
-        
+    	
+    	
         private final String description;
         
         ErrorType(String description) {
@@ -124,7 +125,34 @@ public class SemanticError {
         sb.append(message);
         return sb.toString();
     }
+ // Add getter methods that are missing:
+    public ErrorType getErrorType() {
+        return type;
+    }
     
+    public String getSuggestion() {
+        // Provide helpful suggestions based on error type
+        switch (type) {
+            case UNDEFINED_VARIABLE:
+                return "Check variable spelling or ensure it's declared before use";
+            case TYPE_MISMATCH:
+                return "Ensure types are compatible or use explicit type conversion";
+            case UNDEFINED_FUNCTION:
+                return "Check function name or import the required module";
+            case UNDEFINED_CLASS:
+                return "Ensure class is defined or imported";
+            case UNINITIALIZED_VARIABLE:
+                return "Initialize the variable before using it";
+            case FINAL_VARIABLE_ASSIGNMENT:
+                return "Final variables cannot be reassigned after initialization";
+            case MISSING_RETURN:
+                return "Add a return statement with the correct type";
+            case VISIBILITY_VIOLATION:
+                return "Check access modifiers (public/private/protected)";
+            default:
+                return "";
+        }
+    }
     /**
      * Get a detailed error message with source context.
      */

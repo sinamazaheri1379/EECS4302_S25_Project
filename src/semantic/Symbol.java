@@ -9,6 +9,7 @@ public abstract class Symbol {
     protected int line;
     protected int column;
     protected Scope scope;
+    protected SymbolTable symbolTable;
     
     public Symbol(String name, Type type, int line, int column) {
         this.name = name;
@@ -27,7 +28,7 @@ public abstract class Symbol {
     // Setters
     public void setScope(Scope scope) { this.scope = scope; }
     public void setType(Type type) { this.type = type; }
-    
+    public void setSymbolTable(SymbolTable symbolTable) {this.symbolTable = symbolTable;}
     /**
      * Get the fully qualified name of this symbol.
      */

@@ -247,4 +247,17 @@ public class TypeCompatibility {
     public static boolean isPrimitiveType(Type type) {
         return type instanceof PrimitiveType;
     }
+    
+    public static boolean canPromote(PrimitiveType from, PrimitiveType to) {
+        // int can be promoted to float
+        if (from.equals(PrimitiveType.INT) && to.equals(PrimitiveType.FLOAT)) {
+            return true;
+        }
+        // char can be promoted to int
+        if (from.equals(PrimitiveType.CHAR) && to.equals(PrimitiveType.INT)) {
+            return true;
+        }
+        // Add other promotion rules as needed
+        return false;
+    }
 }

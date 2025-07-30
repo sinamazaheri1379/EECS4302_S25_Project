@@ -25,7 +25,7 @@ public class SymbolTable {
     
     public void define(Symbol symbol) {
         symbols.put(symbol.getName(), symbol);
-        symbol.setScope(this);
+        symbol.setSymbolTable(this); // This should now work
     }
     
     public Symbol resolve(String name) {
