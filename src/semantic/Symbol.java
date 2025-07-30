@@ -3,7 +3,7 @@ package semantic;
 /**
  * Base class for all symbols in the symbol table.
  */
-public abstract class Symbol {
+public class Symbol {
     protected String name;
     protected Type type;
     protected int line;

@@ -11,17 +11,22 @@ public class ConstructorSymbol extends Symbol {
     private VariableSymbol.Visibility visibility;
     private ClassSymbol ownerClass;
     
+    // Update ConstructorSymbol.java
     public ConstructorSymbol(String className, int line, int column) {
-        super(className, null, line, column); // Constructors don't have a return type
+        super(className, new ConstructorType(className, new ArrayList<>()), line, column);
         this.parameters = new ArrayList<>();
-        this.visibility = VariableSymbol.Visibility.PUBLIC; // Default to public
+        this.visibility = VariableSymbol.Visibility.PUBLIC;
     }
     
-    // Parameter management
     public void addParameter(VariableSymbol param) {
         parameters.add(param);
+        // Update constructor type
+        List<Type> paramTypes = new ArrayList<>();
+        for (VariableSymbol p : parameters) {
+            paramTypes.add(p.getType());
+        }
+        this.type = new ConstructorType(name, paramTypes);
     }
-    
     public List<VariableSymbol> getParameters() { 
         return new ArrayList<>(parameters); 
     }

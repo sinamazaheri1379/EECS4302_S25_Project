@@ -1,5 +1,6 @@
 package semantic;
 
+import java.util.Objects;
 /**
  * Represents an array type in the type system.
  */
@@ -103,19 +104,20 @@ public class ArrayType implements Type {
         );
     }
     
+    
+    
     @Override
     public boolean equals(Object other) {
         if (this == other) return true;
         if (!(other instanceof ArrayType)) return false;
-        
         ArrayType that = (ArrayType) other;
-        return dimensions == that.dimensions && 
-               elementType.equals(that.elementType);
+        return this.dimensions == that.dimensions && 
+               this.elementType.equals(that.elementType);
     }
     
     @Override
     public int hashCode() {
-        return 31 * elementType.hashCode() + dimensions;
+        return Objects.hash(elementType, dimensions);
     }
     
     @Override

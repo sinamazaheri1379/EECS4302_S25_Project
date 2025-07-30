@@ -17,22 +17,77 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     private Scope currentScope;
     private ClassSymbol currentClass;
     private MethodSymbol currentMethod;
+    private FunctionSymbol currentFunction;
     private boolean inStaticContext = false;
-    private int loopDepth = 0;
+    private Stack<Boolean> loopStack = new Stack<>();
     private Set<VariableSymbol> initializedVars = new HashSet<>();
     private List<SemanticError> errors = new ArrayList<>();
+    private Map<String, VariableSymbol> localVariables = new HashMap<>();
     
-    // Return tracking
-    private class ReturnTracker {
-        boolean hasDefiniteReturn = false;
- 
+    // Enhanced Return Tracking
+    private class ReturnPath {
+        boolean hasReturn = false;
+        Type returnType = null;
+        Token location = null;
         
-        void addReturn(Token token, Type type, boolean conditional) {
-        	hasDefiniteReturn = true;
+        ReturnPath() {}
+        
+        ReturnPath(boolean hasReturn, Type returnType, Token location) {
+            this.hasReturn = hasReturn;
+            this.returnType = returnType;
+            this.location = location;
+        }
+        
+        ReturnPath merge(ReturnPath other) {
+            // Merged path has return only if both paths return
+            ReturnPath merged = new ReturnPath();
+            merged.hasReturn = this.hasReturn && other.hasReturn;
+            // Keep first return type for error reporting
+            merged.returnType = this.returnType != null ? this.returnType : other.returnType;
+            merged.location = this.location != null ? this.location : other.location;
+            return merged;
+        }
+    }
+    
+    private class ReturnTracker {
+        private List<ReturnPath> unconditionalReturns = new ArrayList<>();
+        private ReturnPath currentPath = new ReturnPath();
+        private Stack<ReturnPath> conditionalPaths = new Stack<>();
+        
+        void enterConditionalBlock() {
+            conditionalPaths.push(currentPath);
+            currentPath = new ReturnPath();
+        }
+        
+        ReturnPath exitConditionalBlock() {
+            ReturnPath blockPath = currentPath;
+            currentPath = conditionalPaths.pop();
+            return blockPath;
+        }
+        
+        void addReturn(Token token, Type type) {
+            currentPath.hasReturn = true;
+            currentPath.returnType = type;
+            currentPath.location = token;
+            
+            // If not in conditional, it's an unconditional return
+            if (conditionalPaths.isEmpty()) {
+                unconditionalReturns.add(new ReturnPath(true, type, token));
+            }
         }
         
         boolean allPathsReturn() {
-            return hasDefiniteReturn;
+            // If we have any unconditional returns, all paths return
+            if (!unconditionalReturns.isEmpty()) {
+                return true;
+            }
+            
+            // Otherwise, current path must have return
+            return currentPath.hasReturn;
+        }
+        
+        boolean hasAnyReturn() {
+            return !unconditionalReturns.isEmpty() || currentPath.hasReturn;
         }
     }
     
@@ -160,18 +215,50 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     public Type visitMethodDecl(MethodDeclContext ctx) {
         if (ctx == null || ctx.funcDecl() == null) return null;
         
-        boolean isStatic = ctx.STATIC() != null;
+        // Get method name from funcDecl
+        String methodName = ctx.funcDecl().ID().getText();
         
-        // Set static context
-        boolean wasStatic = inStaticContext;
-        inStaticContext = isStatic;
+        // Find method symbol
+        Symbol symbol = currentClass.getMemberScope().resolveLocal(methodName);
+        if (!(symbol instanceof MethodSymbol)) {
+            addError(ctx.funcDecl().ID().getSymbol(),
+                "Method '" + methodName + "' not found in symbol table",
+                SemanticError.ErrorType.INTERNAL_ERROR);
+            return null;
+        }
         
-        // Visit function declaration
+        MethodSymbol method = (MethodSymbol) symbol;
+        
+        // Set context
+        MethodSymbol previousMethod = currentMethod;
+        currentMethod = method;
+        boolean previousStatic = inStaticContext;
+        inStaticContext = method.isStatic();
+        
+        // Visit the function declaration
         visit(ctx.funcDecl());
         
-        // Restore static context
-        inStaticContext = wasStatic;
+        // Restore context
+        currentMethod = previousMethod;
+        inStaticContext = previousStatic;
+        
         return null;
+    }
+    
+    @Override
+    public Type visitMethodDecl(MethodDeclContext ctx) {
+        boolean wasStatic = inStaticContext;
+        MethodSymbol method = // ... get method symbol
+        
+        if (method.isStatic()) {
+            inStaticContext = true;
+        }
+        
+        // Visit method body
+        Type result = super.visitMethodDecl(ctx);
+        
+        inStaticContext = wasStatic;
+        return result;
     }
     
     @Override
@@ -247,22 +334,25 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         
         String funcName = ctx.ID().getText();
         
-        // Get function symbol from current scope
+        // Get function symbol
         Symbol symbol = currentScope.resolve(funcName);
         if (symbol == null || !(symbol instanceof FunctionSymbol)) {
-            addError(ctx.ID().getSymbol(),
-                "Function '" + funcName + "' not found in symbol table",
-                SemanticError.ErrorType.INTERNAL_ERROR);
-            return null;
+            // Try method if in class
+            if (currentMethod != null) {
+                symbol = currentMethod;
+            } else {
+                addError(ctx.ID().getSymbol(),
+                    "Function '" + funcName + "' not found in symbol table",
+                    SemanticError.ErrorType.INTERNAL_ERROR);
+                return null;
+            }
         }
         
         FunctionSymbol function = (FunctionSymbol) symbol;
         
-        // Set current method context if it's a method
-        MethodSymbol previousMethod = currentMethod;
-        if (function instanceof MethodSymbol) {
-            currentMethod = (MethodSymbol) function;
-        }
+        // Set current function context
+        FunctionSymbol previousFunction = currentFunction;
+        currentFunction = (function instanceof MethodSymbol) ? null : function;
         
         Scope previousScope = currentScope;
         currentScope = function.getFunctionScope();
@@ -277,7 +367,7 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         // Check return requirements
         Type returnType = function.getReturnType();
         if (!returnType.equals(PrimitiveType.VOID) && !tracker.allPathsReturn()) {
-            Token errorToken = ctx.block() != null && ctx.block().getStop() != null ? 
+            Token errorToken = ctx.block() != null && ctx.block().getStop() != null ?
                 ctx.block().getStop() : ctx.ID().getSymbol();
             addError(errorToken,
                 "Method '" + funcName + "' must return a value of type " + returnType.getName(),
@@ -286,7 +376,7 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         
         // Clean up
         returnTrackers.pop();
-        currentMethod = previousMethod;
+        currentFunction = previousFunction;
         currentScope = previousScope;
         
         return function.getType();
@@ -371,84 +461,84 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     
     @Override
     public Type visitIfStmt(IfStmtContext ctx) {
-        if (ctx == null || ctx.expr() == null) return null;
+        if (ctx == null) return null;
         
         // Check condition
         Type condType = visit(ctx.expr());
         if (condType != null && !condType.equals(PrimitiveType.BOOLEAN)) {
             addError(ctx.expr().getStart(),
-                "Condition must be boolean, found " + condType.getName(),
+                "If condition must be boolean, found " + condType.getName(),
                 SemanticError.ErrorType.TYPE_MISMATCH);
         }
         
-        // Track variables initialized in branches
-        Set<VariableSymbol> beforeIf = new HashSet<>(initializedVars);
-        Set<VariableSymbol> inThen = new HashSet<>();
-        Set<VariableSymbol> inElse = new HashSet<>();
-        
-        // Visit then branch
-        if (ctx.statement(0) != null) {
-            visit(ctx.statement(0));
-            inThen.addAll(initializedVars);
-            inThen.removeAll(beforeIf);
-        }
-        
-        // Reset for else branch
-        initializedVars = new HashSet<>(beforeIf);
-        
-        // Visit else branch if present
-        if (ctx.ELSE() != null && ctx.statement(1) != null) {
-            visit(ctx.statement(1));
-            inElse.addAll(initializedVars);
-            inElse.removeAll(beforeIf);
+        // Track returns in branches
+        if (!returnTrackers.isEmpty()) {
+            ReturnTracker tracker = returnTrackers.peek();
             
-            // Variables initialized in both branches are definitely initialized
-            inThen.retainAll(inElse);
-            initializedVars.addAll(inThen);
+            // Enter then branch
+            tracker.enterConditionalBlock();
+            visit(ctx.statement(0));
+            ReturnPath thenPath = tracker.exitConditionalBlock();
+            
+            ReturnPath elsePath = new ReturnPath();
+            if (ctx.ELSE() != null && ctx.statement(1) != null) {
+                // Enter else branch
+                tracker.enterConditionalBlock();
+                visit(ctx.statement(1));
+                elsePath = tracker.exitConditionalBlock();
+            }
+            
+            // Update current path based on branches
+            if (ctx.ELSE() != null) {
+                // Both branches must return for the if statement to guarantee return
+                ReturnPath merged = thenPath.merge(elsePath);
+                if (merged.hasReturn) {
+                    tracker.currentPath = merged;
+                }
+            }
+            // Without else, if statement doesn't guarantee return
         } else {
-            // No else branch, so no new definitely initialized variables
-            initializedVars = beforeIf;
+            // Not in a function/method, just visit statements
+            visit(ctx.statement(0));
+            if (ctx.ELSE() != null && ctx.statement(1) != null) {
+                visit(ctx.statement(1));
+            }
         }
         
         return null;
     }
     
+    
     @Override
     public Type visitWhileStmt(WhileStmtContext ctx) {
         if (ctx == null || ctx.expr() == null) return null;
         
-        // Check condition
         Type condType = visit(ctx.expr());
+        
         if (condType != null && !condType.equals(PrimitiveType.BOOLEAN)) {
             addError(ctx.expr().getStart(),
                 "While condition must be boolean, found " + condType.getName(),
                 SemanticError.ErrorType.TYPE_MISMATCH);
         }
         
-        // Enter loop context
-        loopDepth++;
-        
-        // Visit body
+        // Track that we're in a loop for break/continue
+        loopStack.push(true);
         if (ctx.statement() != null) {
             visit(ctx.statement());
         }
-        
-        // Exit loop context
-        loopDepth--;
+        loopStack.pop();
         
         return null;
     }
     
     @Override
     public Type visitForStmt(ForStmtContext ctx) {
-        if (ctx == null) return null;
-        
-        // Create new scope for the for loop
-        Scope forScope = new Scope("for", currentScope);
+        // Create new scope for loop variable
+        Scope loopScope = new Scope(currentScope);
         Scope previousScope = currentScope;
-        currentScope = forScope;
+        currentScope = loopScope;
         
-        // Process init
+        // Process initialization
         if (ctx.forInit() != null) {
             visit(ctx.forInit());
         }
@@ -456,7 +546,7 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         // Check condition
         if (ctx.expr() != null) {
             Type condType = visit(ctx.expr());
-            if (condType != null && !condType.equals(PrimitiveType.BOOLEAN)) {
+            if (!condType.equals(PrimitiveType.BOOLEAN)) {
                 addError(ctx.expr().getStart(),
                     "For condition must be boolean, found " + condType.getName(),
                     SemanticError.ErrorType.TYPE_MISMATCH);
@@ -468,46 +558,84 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
             visit(ctx.forUpdate());
         }
         
-        // Enter loop context
-        loopDepth++;
-        
-        // Visit body
+        // Process body
+        loopStack.push(true);
         if (ctx.statement() != null) {
             visit(ctx.statement());
         }
+        loopStack.pop();
         
-        // Exit loop context
-        loopDepth--;
-        
-        // Restore scope
         currentScope = previousScope;
-        
         return null;
     }
     
     @Override
     public Type visitBreakStmt(BreakStmtContext ctx) {
-        if (ctx == null) return null;
-        
-        if (loopDepth == 0) {
+        if (loopStack.isEmpty()) {
             addError(ctx.BREAK().getSymbol(),
-                "Break statement must be inside a loop",
+                "Break statement must be inside a loop or switch",
                 SemanticError.ErrorType.INVALID_BREAK);
         }
+        return null;
+    }
+
+ // In TypeChecker.java
+    @Override
+    public Type visitSwitchStmt(SwitchStmtContext ctx) {
+        if (ctx == null || ctx.expr() == null) return null;
         
+        Type switchType = visit(ctx.expr());
+        
+        // Switch expression must be int, char, or enum (simplified to int/char)
+        if (!switchType.equals(PrimitiveType.INT) && 
+            !switchType.equals(PrimitiveType.CHAR)) {
+            addError(ctx.expr().getStart(),
+                "Switch expression must be int or char, found " + switchType.getName(),
+                SemanticError.ErrorType.TYPE_MISMATCH);
+        }
+        
+        // Track that we're in a switch for break statements
+        loopStack.push(true); // Reuse loop stack for switches
+        
+        Set<Object> seenLabels = new HashSet<>();
+        boolean hasDefault = false;
+        
+        for (SwitchCaseContext caseCtx : ctx.switchCase()) {
+            // Check for duplicate labels
+            if (caseCtx.CASE() != null) {
+                String label = caseCtx.switchLabel().getText();
+                if (!seenLabels.add(label)) {
+                    addError(caseCtx.switchLabel().getStart(),
+                        "Duplicate case label: " + label,
+                        SemanticError.ErrorType.REDEFINITION);
+                }
+            } else {
+                // DEFAULT case
+                if (hasDefault) {
+                    addError(caseCtx.DEFAULT().getSymbol(),
+                        "Duplicate default label",
+                        SemanticError.ErrorType.REDEFINITION);
+                }
+                hasDefault = true;
+            }
+            
+            // Visit statements in case
+            for (StatementContext stmt : caseCtx.statement()) {
+                visit(stmt);
+            }
+        }
+        
+        loopStack.pop();
         return null;
     }
     
     @Override
     public Type visitContinueStmt(ContinueStmtContext ctx) {
-        if (ctx == null) return null;
-        
-        if (loopDepth == 0) {
+        if (loopStack.isEmpty()) {
             addError(ctx.CONTINUE().getSymbol(),
                 "Continue statement must be inside a loop",
                 SemanticError.ErrorType.INVALID_CONTINUE);
         }
-        
         return null;
     }
     
@@ -523,7 +651,7 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         }
         
         // Check if we're in a method/function
-        if (currentMethod == null && returnTrackers.isEmpty()) {
+        if (currentMethod == null && currentFunction == null) {
             addError(ctx.RETURN().getSymbol(),
                 "Return statement must be inside a method or function",
                 SemanticError.ErrorType.INVALID_RETURN);
@@ -534,9 +662,8 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         Type expectedType = PrimitiveType.VOID;
         if (currentMethod != null) {
             expectedType = currentMethod.getReturnType();
-        } else if (!returnTrackers.isEmpty()) {
-            // We're in a function, need to get its return type
-            // This is handled by the ReturnTracker
+        } else if (currentFunction != null) {
+            expectedType = currentFunction.getReturnType();
         }
         
         // Check return type compatibility
@@ -562,7 +689,7 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         // Update return tracking
         if (!returnTrackers.isEmpty()) {
             ReturnTracker tracker = returnTrackers.peek();
-            tracker.addReturn(ctx.RETURN().getSymbol(), returnType, loopDepth > 0);
+            tracker.addReturn(ctx.RETURN().getSymbol(), returnType);
         }
         
         return null;
@@ -584,18 +711,16 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         // Check if lvalue is assignable
         if (ctx.lvalue() instanceof VarLvalueContext) {
             VarLvalueContext varLvalue = (VarLvalueContext) ctx.lvalue();
-            String varName = varLvalue.ID().getText();
-            Symbol symbol = currentScope.resolve(varName);
+            Symbol symbol = currentScope.resolve(varLvalue.ID().getText());
             
             if (symbol instanceof VariableSymbol) {
                 VariableSymbol var = (VariableSymbol) symbol;
                 if (var.isFinal() && var.isInitialized()) {
                     addError(varLvalue.ID().getSymbol(),
-                        "Cannot assign to final variable '" + varName + "'",
+                        "Cannot assign to final variable '" + var.getName() + "'",
                         SemanticError.ErrorType.FINAL_VARIABLE_ASSIGNMENT);
-                } else {
+                } else if (var.isFinal()) {
                     var.setInitialized(true);
-                    initializedVars.add(var);
                 }
             }
         }
@@ -612,7 +737,7 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     
     @Override
     public Type visitCompoundAssignStmt(CompoundAssignStmtContext ctx) {
-        if (ctx == null || ctx.lvalue() == null || ctx.expr() == null || ctx.op == null) {
+        if (ctx == null || ctx.lvalue() == null || ctx.expr() == null) {
             return null;
         }
         
@@ -623,36 +748,50 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
             return null;
         }
         
-        // Check if lvalue is final
-        if (ctx.lvalue() instanceof VarLvalueContext) {
-            String varName = ((VarLvalueContext) ctx.lvalue()).ID().getText();
-            Symbol symbol = currentScope.resolve(varName);
-            
-            if (symbol instanceof VariableSymbol && ((VariableSymbol) symbol).isFinal()) {
-                addError(ctx.lvalue().getStart(),
-                    "Cannot assign to final variable '" + varName + "'",
-                    SemanticError.ErrorType.FINAL_VARIABLE_ASSIGNMENT);
-                return null;
+        String op = ctx.op.getText();
+        
+        // Check if lvalue is assignable
+        if (!isAssignableLvalue(ctx.lvalue())) {
+            addError(ctx.lvalue().getStart(),
+                "Invalid left-hand side of assignment",
+                SemanticError.ErrorType.INVALID_LVALUE);
+            return null;
+        }
+        
+        // Check type compatibility based on operator
+        if (op.equals("+=")) {
+            // Special case for string concatenation
+            if (lvalueType.equals(PrimitiveType.STRING)) {
+                if (!TypeCompatibility.canConvertToString(exprType)) {
+                    addError(ctx.expr().getStart(),
+                        "Cannot concatenate " + exprType.getName() + " to string",
+                        SemanticError.ErrorType.TYPE_MISMATCH);
+                }
+            } else if (TypeCompatibility.isNumeric(lvalueType) && 
+                       TypeCompatibility.isNumeric(exprType)) {
+                // Numeric operations
+                if (!TypeCompatibility.isAssignmentCompatible(lvalueType, exprType)) {
+                    addError(ctx.expr().getStart(),
+                        "Incompatible types for " + op + " operation",
+                        SemanticError.ErrorType.TYPE_MISMATCH);
+                }
+            } else {
+                addError(ctx.op,
+                    "Operator " + op + " cannot be applied to " + 
+                    lvalueType.getName() + " and " + exprType.getName(),
+                    SemanticError.ErrorType.TYPE_MISMATCH);
+            }
+        } else {
+            // Other compound operators only work with numeric types
+            if (!TypeCompatibility.isNumeric(lvalueType) || 
+                !TypeCompatibility.isNumeric(exprType)) {
+                addError(ctx.op,
+                    "Operator " + op + " requires numeric operands",
+                    SemanticError.ErrorType.TYPE_MISMATCH);
             }
         }
         
-        // Check if types are numeric for arithmetic operations
-        String op = ctx.op.getText();
-        if (!lvalueType.equals(PrimitiveType.INT) && !lvalueType.equals(PrimitiveType.FLOAT)) {
-            addError(ctx.lvalue().getStart(),
-                "Compound assignment operator '" + op + "' requires numeric type, found " + 
-                lvalueType.getName(),
-                SemanticError.ErrorType.TYPE_MISMATCH);
-        }
-        
-        if (!TypeCompatibility.isAssignmentCompatible(lvalueType, exprType)) {
-            addError(ctx.expr().getStart(),
-                "Cannot apply '" + op + "' with " + exprType.getName() + " to " + 
-                lvalueType.getName(),
-                SemanticError.ErrorType.TYPE_MISMATCH);
-        }
-        
-        return null;
+        return lvalueType;
     }
     
     @Override
@@ -1273,18 +1412,16 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     
     @Override
     public Type visitThisExpr(ThisExprContext ctx) {
-        if (ctx == null) return ErrorType.getInstance();
-        
         if (currentClass == null) {
             addError(ctx.THIS().getSymbol(),
-                "'this' cannot be used outside a class",
+                "Cannot use 'this' outside of a class",
                 SemanticError.ErrorType.INVALID_THIS);
             return ErrorType.getInstance();
         }
         
         if (inStaticContext) {
             addError(ctx.THIS().getSymbol(),
-                "'this' cannot be used in static context",
+                "Cannot use 'this' in static context",
                 SemanticError.ErrorType.STATIC_CONTEXT_ERROR);
             return ErrorType.getInstance();
         }
@@ -1292,6 +1429,40 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         return currentClass.getType();
     }
     
+ // In TypeChecker.java
+    @Override
+    public Type visitPostIncDec(PostIncDecContext ctx) {
+        if (ctx == null || ctx.expr() == null) {
+            return ErrorType.getInstance();
+        }
+        
+        Type exprType = visit(ctx.expr());
+        
+        // Must be applied to an lvalue
+        if (!isLvalueExpression(ctx.expr())) {
+            addError(ctx.op,
+                "Operator " + ctx.op.getText() + " requires an lvalue",
+                SemanticError.ErrorType.INVALID_LVALUE);
+            return ErrorType.getInstance();
+        }
+        
+        // Must be numeric type
+        if (!TypeCompatibility.isNumeric(exprType)) {
+            addError(ctx.op,
+                "Operator " + ctx.op.getText() + " requires numeric type",
+                SemanticError.ErrorType.TYPE_MISMATCH);
+            return ErrorType.getInstance();
+        }
+        
+        return exprType;
+    }
+
+    // Helper method to check if an expression is an lvalue
+    private boolean isLvalueExpression(ExprContext expr) {
+        return expr instanceof VarRefContext ||
+               expr instanceof FieldAccessContext ||
+               expr instanceof ArrayAccessContext;
+    }
  // Fix visitParenExpr method:
     @Override
     public Type visitParenExpr(ParenExprContext ctx) {
@@ -1370,6 +1541,25 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         if (ctx.CHAR() != null) return PrimitiveType.CHAR;
         
         return ErrorType.getInstance();
+    }
+    
+ // In TypeChecker.java
+    @Override
+    public Type visitPrintStmt(PrintStmtContext ctx) {
+        if (ctx == null || ctx.expr() == null) {
+            return null;
+        }
+        
+        Type exprType = visit(ctx.expr());
+        
+        // Check if type can be converted to string for printing
+        if (exprType != null && !TypeCompatibility.canConvertToString(exprType)) {
+            addError(ctx.expr().getStart(),
+                "Cannot print value of type " + exprType.getName(),
+                SemanticError.ErrorType.TYPE_MISMATCH);
+        }
+        
+        return null;
     }
     
     @Override
