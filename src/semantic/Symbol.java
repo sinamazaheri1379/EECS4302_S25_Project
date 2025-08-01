@@ -8,7 +8,6 @@ public class Symbol {
     protected Type type;
     protected int line;
     protected int column;
-    protected Scope scope;
     protected SymbolTable symbolTable;
     
     public Symbol(String name, Type type, int line, int column) {
@@ -19,14 +18,13 @@ public class Symbol {
     }
     
     // Getters
-    public String getName() { return name; }
-    public Type getType() { return type; }
-    public int getLine() { return line; }
-    public int getColumn() { return column; }
-    public Scope getScope() { return scope; }
+    public String getName() { return this.name; }
+    public Type getType() { return this.type; }
+    public int getLine() { return this.line; }
+    public int getColumn() { return this.column; }
+    public SymbolTable getSymbolTable() { return this.symbolTable; }
     
     // Setters
-    public void setScope(Scope scope) { this.scope = scope; }
     public void setType(Type type) { this.type = type; }
     public void setSymbolTable(SymbolTable symbolTable) {this.symbolTable = symbolTable;}
     
@@ -35,7 +33,7 @@ public class Symbol {
      * Fixed: Added null safety checks to prevent NPE
      */
     public String getQualifiedName() {
-        if (scope == null || scope.getParent() == null) {
+        if (this.getSymbolTable() == null || this.getSymbolTable().getParent() == null) {
             return name;
         }
         

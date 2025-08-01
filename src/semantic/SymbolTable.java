@@ -136,7 +136,7 @@ public class SymbolTable {
                 return false;
             }
             symbols.put(symbol.getName(), symbol);
-            symbol.setScope(this); // Use existing setScope method
+            symbol.setSymbolTable(this); // Use existing setScope method
             return true;
         }
     }
