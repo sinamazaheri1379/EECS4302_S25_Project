@@ -2,6 +2,7 @@ package semantic;
 
 import generated.*;
 import generated.TypeCheckerParser.*;
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
@@ -23,6 +24,8 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     private Set<VariableSymbol> initializedVars = new HashSet<>();
     private List<SemanticError> errors = new ArrayList<>();
     private Stack<ReturnTracker> returnTrackers = new Stack<>();
+    
+    
     // Enhanced Return Tracking
     private class ReturnPath {
         boolean hasReturn = false;
@@ -88,8 +91,6 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
        
     }
     
-    
-    
     public TypeChecker(Scope globalScope) {
         this.globalScope = globalScope;
         this.currentScope = globalScope;
@@ -105,6 +106,114 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         }
     }
     
+    private boolean isAssignableLvalue(LvalueContext lvalue) {
+        if (lvalue instanceof VarLvalueContext) {
+            VarLvalueContext varLvalue = (VarLvalueContext) lvalue;
+            Symbol symbol = currentScope.resolve(varLvalue.ID().getText());
+            if (symbol instanceof VariableSymbol) {
+                VariableSymbol var = (VariableSymbol) symbol;
+                return !var.isFinal() || !var.isInitialized();
+            }
+        }
+        return true; // Field and array access are assignable
+    }
+
+    // Helper to get type from TypeContext
+    private Type getType(TypeContext ctx) {
+        if (ctx == null) return ErrorType.getInstance();
+        return visit(ctx);
+    }
+    
+    private Token getStartToken(ParseTree tree) {
+        if (tree instanceof ParserRuleContext) {
+            return ((ParserRuleContext) tree).getStart();
+        } else if (tree instanceof TerminalNode) {
+            return ((TerminalNode) tree).getSymbol();
+        }
+        return null;
+    }
+    
+    private Type getArrayType(Type baseType, VarDeclaratorContext declarator) {
+        Type result = baseType;
+        
+        // Count array dimensions by looking for '[' tokens
+        for (int i = 0; i < declarator.getChildCount(); i++) {
+            ParseTree child = declarator.getChild(i);
+            if (child instanceof TerminalNode) {
+                TerminalNode terminal = (TerminalNode) child;
+                if (terminal.getSymbol().getType() == TypeCheckerParser.LBRACK) {
+                    result = new ArrayType(result);
+                }
+            }
+        }
+        
+        return result;
+    }
+    
+    private Type getTypeFromParamContext(ParamContext param) {
+        if (param == null || param.type() == null) return null;
+        
+        Type baseType = visit(param.type());
+        if (baseType == null) return null;
+        
+        // Handle array parameters
+        Type result = baseType;
+        for (int i = 0; i < param.getChildCount(); i++) {
+            ParseTree child = param.getChild(i);
+            if (child instanceof TerminalNode) {
+                TerminalNode terminal = (TerminalNode) child;
+                if (terminal.getSymbol().getType() == TypeCheckerParser.LBRACK) {
+                    result = new ArrayType(result);
+                }
+            }
+        }
+        
+        return result;
+    }
+    
+    private boolean matchesParameterTypes(List<VariableSymbol> params, List<Type> types) {
+        if (params.size() != types.size()) {
+            return false;
+        }
+        
+        for (int i = 0; i < params.size(); i++) {
+            if (!params.get(i).getType().equals(types.get(i))) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    private boolean isNumericType(Type type) {
+        return type.equals(PrimitiveType.INT) || type.equals(PrimitiveType.FLOAT);
+    }
+    
+    private boolean isLvalueExpression(ExprContext expr) {
+        if (expr == null) return false;
+        
+        return expr.accept(new TypeCheckerBaseVisitor<Boolean>() {
+            @Override
+            public Boolean visitVarRef(VarRefContext ctx) {
+                return true;
+            }
+            
+            @Override
+            public Boolean visitFieldAccess(FieldAccessContext ctx) {
+                return true;
+            }
+            
+            @Override
+            public Boolean visitArrayAccess(ArrayAccessContext ctx) {
+                return true;
+            }
+            
+            @Override
+            protected Boolean defaultResult() {
+                return false;
+            }
+        });
+    }
     // Program visitor
     
     @Override
@@ -783,14 +892,7 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         return null;
     }
  // When you need to get a token from ParseTree:
-    private Token getStartToken(ParseTree tree) {
-        if (tree instanceof ParserRuleContext) {
-            return ((ParserRuleContext) tree).getStart();
-        } else if (tree instanceof TerminalNode) {
-            return ((TerminalNode) tree).getSymbol();
-        }
-        return null;
-    }
+    
 
     // 30. Visibility
     @Override
@@ -1500,6 +1602,8 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         return field.getType();
     }
     
+    
+    
     @Override
     public Type visitMethodCall(MethodCallContext ctx) {
         if (ctx == null || ctx.expr() == null || ctx.ID() == null) {
@@ -1620,14 +1724,14 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
             return function.getReturnType();
         }
         
-        // Check parameter types
         for (int i = 0; i < argTypes.size(); i++) {
             Type paramType = function.getParameters().get(i).getType();
             Type argType = argTypes.get(i);
             
             if (!TypeCompatibility.isAssignmentCompatible(paramType, argType)) {
-                ParseTree argExpr = ctx.argList().expr(i);
+                ExprContext argExpr = ctx.argList().expr(i);
                 Token argToken = argExpr != null ? argExpr.getStart() : ctx.ID().getSymbol();
+                
                 addError(argToken,
                     "Argument " + (i + 1) + ": cannot convert " + argType.getName() + 
                     " to " + paramType.getName(),
@@ -1928,14 +2032,6 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         return exprType;
     }
 
- // Helper method to check if an expression is an lvalue
-    private boolean isLvalueExpression(ExprContext expr) {
-        // Use instanceof checks on the actual runtime type
-        if (expr instanceof VarRefContext) return true;
-        if (expr instanceof FieldAccessContext) return true;
-        if (expr instanceof ArrayAccessContext) return true;
-        return false;
-    }
  // Fix visitParenExpr method:
     @Override
     public Type visitParenExpr(ParenExprContext ctx) {
@@ -1947,61 +2043,7 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     
     // Helper methods
     
-    private Type getArrayType(Type baseType, VarDeclaratorContext declarator) {
-        Type result = baseType;
-        
-        // Count array dimensions by looking for '[' tokens
-        for (int i = 0; i < declarator.getChildCount(); i++) {
-            ParseTree child = declarator.getChild(i);
-            if (child instanceof TerminalNode) {
-                TerminalNode terminal = (TerminalNode) child;
-                if (terminal.getSymbol().getType() == TypeCheckerParser.LBRACK) {
-                    result = new ArrayType(result);
-                }
-            }
-        }
-        
-        return result;
-    }
     
-    private Type getTypeFromParamContext(ParamContext param) {
-        if (param == null || param.type() == null) return null;
-        
-        Type baseType = visit(param.type());
-        if (baseType == null) return null;
-        
-        // Handle array parameters
-        Type result = baseType;
-        for (int i = 0; i < param.getChildCount(); i++) {
-            ParseTree child = param.getChild(i);
-            if (child instanceof TerminalNode) {
-                TerminalNode terminal = (TerminalNode) child;
-                if (terminal.getSymbol().getType() == TypeCheckerParser.LBRACK) {
-                    result = new ArrayType(result);
-                }
-            }
-        }
-        
-        return result;
-    }
-    
-    private boolean matchesParameterTypes(List<VariableSymbol> params, List<Type> types) {
-        if (params.size() != types.size()) {
-            return false;
-        }
-        
-        for (int i = 0; i < params.size(); i++) {
-            if (!params.get(i).getType().equals(types.get(i))) {
-                return false;
-            }
-        }
-        
-        return true;
-    }
-    
-    private boolean isNumericType(Type type) {
-        return type.equals(PrimitiveType.INT) || type.equals(PrimitiveType.FLOAT);
-    }
     
     @Override
     public Type visitPrimitiveType(PrimitiveTypeContext ctx) {
@@ -2035,23 +2077,7 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         return null;
     }
  // Helper to check if lvalue is assignable
-    private boolean isAssignableLvalue(LvalueContext lvalue) {
-        if (lvalue instanceof VarLvalueContext) {
-            VarLvalueContext varLvalue = (VarLvalueContext) lvalue;
-            Symbol symbol = currentScope.resolve(varLvalue.ID().getText());
-            if (symbol instanceof VariableSymbol) {
-                VariableSymbol var = (VariableSymbol) symbol;
-                return !var.isFinal() || !var.isInitialized();
-            }
-        }
-        return true; // Field and array access are assignable
-    }
-
-    // Helper to get type from TypeContext
-    private Type getType(TypeContext ctx) {
-        if (ctx == null) return ErrorType.getInstance();
-        return visit(ctx);
-    }
+    
 
     // Add missing varDeclarator visitor
     @Override
