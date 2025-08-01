@@ -172,10 +172,6 @@ blockStmt
     : block
     ;
 
-printStmt
-    : PRINT '(' expr ')' ';'
-    ;
-
 emptyStmt
     : ';'
     ;
@@ -288,7 +284,6 @@ SUPER : 'super' ;
 NULL : 'null' ;
 TRUE : 'true' ;
 FALSE : 'false' ;
-PRINT : 'print' ;
 INSTANCEOF : 'instanceof' ;
 
 // Types

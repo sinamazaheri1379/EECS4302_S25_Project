@@ -236,12 +236,6 @@ public interface TypeCheckerVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitBlockStmt(TypeCheckerParser.BlockStmtContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link TypeCheckerParser#printStmt}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitPrintStmt(TypeCheckerParser.PrintStmtContext ctx);
-	/**
 	 * Visit a parse tree produced by {@link TypeCheckerParser#emptyStmt}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
