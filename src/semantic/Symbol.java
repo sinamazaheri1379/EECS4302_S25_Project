@@ -1,139 +1,117 @@
 package semantic;
 
-import semantic.symbols.ClassSymbol;
-import type.Type;
+import semantic.types.Type;
+import semantic.visitors.SymbolVisitor;
 
 /**
- * Base class for all symbols in the symbol table.
+ * Abstract base class for all symbols in the symbol table.
+ * 
+ * A symbol represents a named program entity (variable, function, class, etc.)
+ * with a type and source location. Symbols are immutable except for their type,
+ * which may be updated during semantic analysis for forward references.
  */
-public class Symbol {
-    protected String name;
+public abstract class Symbol {
+    protected final String name;
     protected Type type;
-    protected int line;
-    protected int column;
-    protected SymbolTable symbolTable;
+    protected final int line;
+    protected final int column;
     
-    public Symbol(String name, Type type, int line, int column) {
+    /**
+     * Creates a new Symbol.
+     * 
+     * @param name   The identifier name of this symbol
+     * @param type   The type of this symbol (may be null for forward references)
+     * @param line   The line number where this symbol is declared
+     * @param column The column number where this symbol is declared
+     */
+    protected Symbol(String name, Type type, int line, int column) {
+        if (name == null || name.isEmpty()) {
+            throw new IllegalArgumentException("Symbol name cannot be null or empty");
+        }
         this.name = name;
         this.type = type;
         this.line = line;
         this.column = column;
     }
     
-    // Getters
-    public String getName() { return this.name; }
-    public Type getType() { return this.type; }
-    public int getLine() { return this.line; }
-    public int getColumn() { return this.column; }
-    public SymbolTable getSymbolTable() { return this.symbolTable; }
-    
-    // Setters
-    public void setType(Type type) { this.type = type; }
-    public void setSymbolTable(SymbolTable symbolTable) {this.symbolTable = symbolTable;}
+    // ===== ABSTRACT METHODS =====
     
     /**
-     * Get the fully qualified name of this symbol.
-     * Fixed: Added null safety checks to prevent NPE
+     * Gets the kind of this symbol.
+     * Used for identifying symbol types without instanceof checks.
      */
-    public String getQualifiedName() {
-        if (this.getSymbolTable() == null || this.getSymbolTable().getParent() == null) {
-            return name;
-        }
-        
-        // Build qualified name from scope hierarchy
-        StringBuilder sb = new StringBuilder();
-        buildQualifiedName(sb, scope);
-        if (sb.length() > 0) {
-            sb.append(".");
-        }
-        sb.append(name);
-        return sb.toString();
+    public abstract SymbolKind getKind();
+    
+    /**
+     * Accepts a visitor for symbol-specific operations.
+     */
+    public abstract <T> T accept(SymbolVisitor<T> visitor);
+    
+    // ===== GETTERS =====
+    
+    public String getName() { 
+        return name; 
+    }
+    
+    public Type getType() { 
+        return type; 
+    }
+    
+    public int getLine() { 
+        return line; 
+    }
+    
+    public int getColumn() { 
+        return column; 
+    }
+    
+    // ===== SETTERS =====
+    
+    /**
+     * Updates the type of this symbol.
+     * Used for resolving forward references.
+     */
+    public void setType(Type type) { 
+        this.type = type; 
+    }
+    
+    // ===== UTILITY METHODS =====
+    
+    /**
+     * Checks if this symbol has a resolved type.
+     */
+    public boolean hasType() {
+        return type != null;
     }
     
     /**
-     * Recursively build qualified name from scope hierarchy.
-     * Fixed: Added null safety check for enclosingClass
-     */
-    private void buildQualifiedName(StringBuilder sb, Scope currentScope) {
-        if (currentScope == null || currentScope.getParent() == null) {
-            return;
-        }
-        
-        // Find the symbol that owns this scope
-        ClassSymbol enclosingClass = currentScope.getEnclosingClass();
-        if (enclosingClass != null) {
-            // Recursively build parent's qualified name
-            Scope parentScope = enclosingClass.getScope();
-            if (parentScope != null) {
-                buildQualifiedName(sb, parentScope);
-            }
-            
-            if (sb.length() > 0) {
-                sb.append(".");
-            }
-            sb.append(enclosingClass.getName());
-        }
-    }
-    
-    /**
-     * Check if this symbol is defined at the global scope.
-     */
-    public boolean isGlobal() {
-        return scope != null && scope.getParent() == null;
-    }
-    
-    /**
-     * Get a string representation suitable for error messages.
+     * Gets a string representation for error messages.
      */
     public String toErrorString() {
         return String.format("%s '%s' at line %d:%d", 
-            getSymbolKind(), name, line, column);
+            getKind().getDisplayName(), name, line, column);
     }
     
-    /**
-     * Get the kind of symbol as a string (for error messages).
-     */
-    protected String getSymbolKind() {
-        return "symbol";
-    }
-    
-    @Override
-    public String toString() {
-        return name + ": " + (type != null ? type.toString() : "null");
-    }
-    
-    /**
-     * Fixed: More robust equality check using qualified names
-     * Two symbols are equal if they have the same name and are in the same logical scope
-     */
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         
-        Symbol symbol = (Symbol) obj;
-        
-        // First check if names are equal
-        if (!name.equals(symbol.name)) return false;
-        
-        // For symbols in the same scope object, they're equal
-        if (scope == symbol.scope) return true;
-        
-        // For symbols in different scope objects, compare qualified names
-        // This handles cases where scopes are recreated but represent the same logical scope
-        String thisQualified = getQualifiedName();
-        String otherQualified = symbol.getQualifiedName();
-        
-        return thisQualified.equals(otherQualified);
+        Symbol other = (Symbol) obj;
+        return name.equals(other.name) && getKind() == other.getKind();
     }
     
-    /**
-     * Fixed: Hash code now consistent with equals()
-     */
     @Override
     public int hashCode() {
-        // Use qualified name for hash code to be consistent with equals()
-        String qualified = getQualifiedName();
-        return qualified.hashCode();
+        return name.hashCode() * 31 + getKind().hashCode();
+    }
+    
+    @Override
+    public String toString() {
+        if (type != null) {
+            return String.format("%s %s: %s", getKind().getDisplayName(), name, type);
+        } else {
+            return String.format("%s %s: <unresolved>", getKind().getDisplayName(), name);
+        }
     }
 }

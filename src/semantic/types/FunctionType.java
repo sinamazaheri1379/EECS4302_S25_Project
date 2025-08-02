@@ -9,7 +9,7 @@ import type.Type;
  * Represents a function type in the type system.
  * Used for function pointers or first-class functions if supported.
  */
-public class FunctionType implements Type {
+public class FunctionType extends Type {
     private final Type returnType;
     private final List<Type> parameterTypes;
     private final boolean isVarArgs;

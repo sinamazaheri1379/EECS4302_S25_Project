@@ -6,7 +6,7 @@ import semantic.analysis.TypeCompatibility;
 /**
  * Represents an array type in the type system.
  */
-public class ArrayType implements Type {
+public class ArrayType extends Type {
     private final Type elementType;
     private final int dimensions;
     

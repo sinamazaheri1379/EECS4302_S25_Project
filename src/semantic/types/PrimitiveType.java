@@ -1,12 +1,11 @@
 package semantic.types;
 
-import types.Type;
 
 /**
  * Represents primitive types in the language.
  * Uses singleton pattern for each primitive type.
  */
-public class PrimitiveType implements Type {
+public class PrimitiveType extends Type {
     
     // Singleton instances for each primitive type
     public static final PrimitiveType INT = new PrimitiveType("int", 4);

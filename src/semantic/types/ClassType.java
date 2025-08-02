@@ -7,7 +7,7 @@ import type.Type;
 /**
  * Represents a class type in the type system.
  */
-public class ClassType implements Type {
+public class ClassType extends Type {
     private final String name;
     private ClassSymbol classSymbol;
     private ClassSymbol superClass;

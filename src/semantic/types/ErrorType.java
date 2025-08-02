@@ -1,13 +1,11 @@
 package semantic.types;
 
-import type.Type;
-
 /**
  * Represents an error type in the type system.
  * Used when type checking fails to prevent cascading errors.
  * Implements singleton pattern.
  */
-public class ErrorType implements Type {
+public class ErrorType extends Type {
     private static final ErrorType INSTANCE = new ErrorType();
     
     private ErrorType() {

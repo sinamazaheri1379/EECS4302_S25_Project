@@ -5,7 +5,7 @@ import java.util.*;
 
 import type.Type;
 
-public class ConstructorType implements Type {
+public class ConstructorType extends Type {
     private final String className;
     private final List<Type> parameterTypes;
     

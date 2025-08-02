@@ -1,13 +1,12 @@
 package semantic.types;
 
-import type.Type;
 
 /**
  * Represents the null type in the type system.
  * Used for null literals and can be assigned to any reference type.
  * Implements singleton pattern.
  */
-public class NullType implements Type {
+public class NullType extends Type {
     private static final NullType INSTANCE = new NullType();
     
     private NullType() {
