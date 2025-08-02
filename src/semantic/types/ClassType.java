@@ -1,4 +1,8 @@
-package semantic;
+package semantic.types;
+
+import semantic.analysis.TypeCompatibility;
+import semantic.symbols.ClassSymbol;
+import type.Type;
 
 /**
  * Represents a class type in the type system.

@@ -1,7 +1,20 @@
-package semantic;
+package semantic.analysis;
 
 import generated.*;
 import generated.TypeCheckerParser.*;
+import semantic.SemanticError;
+import semantic.Symbol;
+import semantic.symbols.ClassSymbol;
+import semantic.symbols.ConstructorSymbol;
+import semantic.symbols.FunctionSymbol;
+import semantic.symbols.MethodSymbol;
+import semantic.symbols.VariableSymbol;
+import semantic.types.ArrayType;
+import semantic.types.ClassType;
+import semantic.types.ErrorType;
+import semantic.types.PrimitiveType;
+import type.Type;
+
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;

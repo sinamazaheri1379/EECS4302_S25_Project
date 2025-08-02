@@ -2,6 +2,11 @@
 package main;
 
 import semantic.*;
+import semantic.symbols.ClassSymbol;
+import semantic.symbols.ConstructorSymbol;
+import semantic.symbols.FunctionSymbol;
+import semantic.symbols.VariableSymbol;
+
 import java.io.*;
 import java.nio.file.*;
 import java.time.LocalDateTime;

@@ -1,4 +1,6 @@
-package semantic;
+package semantic.types;
+
+import types.Type;
 
 /**
  * Represents primitive types in the language.

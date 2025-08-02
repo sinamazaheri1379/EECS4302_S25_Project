@@ -2,6 +2,9 @@ package semantic;
 
 import java.util.*;
 
+import semantic.symbols.ClassSymbol;
+import semantic.symbols.MethodSymbol;
+
 /**
  * Unified SymbolTable class that combines scope management with symbol storage.
  * This implementation merges the functionality of the original Scope and SymbolTable classes

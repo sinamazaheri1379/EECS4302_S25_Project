@@ -1,6 +1,8 @@
-package semantic;
+package semantic.types;
 
 import java.util.Objects;
+
+import semantic.analysis.TypeCompatibility;
 /**
  * Represents an array type in the type system.
  */

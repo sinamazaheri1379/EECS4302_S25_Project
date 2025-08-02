@@ -1,4 +1,6 @@
-package semantic;
+package semantic.types;
+
+import type.Type;
 
 /**
  * Represents an error type in the type system.

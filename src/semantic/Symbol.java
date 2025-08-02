@@ -1,5 +1,8 @@
 package semantic;
 
+import semantic.symbols.ClassSymbol;
+import type.Type;
+
 /**
  * Base class for all symbols in the symbol table.
  */

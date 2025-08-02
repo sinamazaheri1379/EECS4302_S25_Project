@@ -1,6 +1,9 @@
-package semantic;
+package semantic.types;
 
 import java.util.*;
+
+import semantic.analysis.TypeCompatibility;
+import type.Type;
 
 /**
  * Represents a function type in the type system.

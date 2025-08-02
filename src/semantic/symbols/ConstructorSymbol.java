@@ -1,6 +1,11 @@
-package semantic;
+package semantic.symbols;
 
 import java.util.*;
+
+import semantic.Symbol;
+import semantic.analysis.TypeCompatibility;
+import semantic.types.ConstructorType;
+import type.Type;
 
 /**
  * Symbol representing a constructor.

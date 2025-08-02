@@ -3,13 +3,16 @@ package main;
 
 import generated.*;
 import semantic.*;
+import semantic.analysis.SymbolTableBuilder;
+import semantic.analysis.TypeChecker;
+
 import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.tree.*;
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
 
-public class Main {
+public class MainCompiler {
     public static void main(String[] args) {
         if (args.length < 1) {
             System.err.println("Usage: java main.Main <input-file> [output-file]");

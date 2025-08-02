@@ -1,4 +1,7 @@
-package semantic;
+package semantic.symbols;
+
+import semantic.Symbol;
+import type.Type;
 
 /**
  * Symbol representing a variable, field, or parameter.

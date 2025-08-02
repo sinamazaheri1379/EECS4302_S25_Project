@@ -1,6 +1,9 @@
-package semantic;
+package semantic.symbols;
 
 import java.util.*;
+
+import semantic.types.ClassType;
+import type.Type;
 
 /**
  * Symbol representing a method in a class.

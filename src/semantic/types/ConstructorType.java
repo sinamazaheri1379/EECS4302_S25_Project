@@ -1,7 +1,9 @@
 // New file: ConstructorType.java
-package semantic;
+package semantic.types;
 
 import java.util.*;
+
+import type.Type;
 
 public class ConstructorType implements Type {
     private final String className;

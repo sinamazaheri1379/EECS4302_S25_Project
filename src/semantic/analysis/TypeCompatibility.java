@@ -1,4 +1,13 @@
-package semantic;
+package semantic.analysis;
+
+import semantic.symbols.ClassSymbol;
+import semantic.types.ArrayType;
+import semantic.types.ClassType;
+import semantic.types.ErrorType;
+import semantic.types.FunctionType;
+import semantic.types.NullType;
+import semantic.types.PrimitiveType;
+import type.Type;
 
 /**
  * Utility class for checking type compatibility in assignments, comparisons, etc.
