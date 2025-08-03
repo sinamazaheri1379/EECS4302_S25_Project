@@ -7,7 +7,11 @@ import semantic.types.ErrorType;
 import semantic.types.FunctionType;
 import semantic.types.NullType;
 import semantic.types.PrimitiveType;
-import type.Type;
+import semantic.types.Type;  // Changed from type.Type
+
+/**
+ * Utility class for checking type compatibility in assignments, comparisons, etc.
+ */
 
 /**
  * Utility class for checking type compatibility in assignments, comparisons, etc.
