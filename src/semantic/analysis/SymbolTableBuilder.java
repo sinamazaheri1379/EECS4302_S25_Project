@@ -21,6 +21,7 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
     private ClassSymbol currentClass;
     private List<SemanticError> errors;
     private Set<String> imports;
+    private List<ClassType> unresolvedTypes;
     
     public SymbolTableBuilder() {
         this.globalScope = SymbolTable.createGlobalScope();
@@ -610,13 +611,6 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
             if (primType.STRING() != null) return PrimitiveType.STRING;
             if (primType.BOOLEAN() != null) return PrimitiveType.BOOLEAN;
             if (primType.CHAR() != null) return PrimitiveType.CHAR;
-        } else if (ctx.classType() != null) {
-            String className = ctx.classType().ID().getText();
-            Symbol classSymbol = globalScope.resolve(className);
-            if (classSymbol instanceof ClassSymbol) {
-                return new ClassType(className, (ClassSymbol) classSymbol);
-            }
-            return new ClassType(className, null); // Forward reference
         }else if (ctx.classType() != null) {
             String className = ctx.classType().ID().getText();
             Symbol classSymbol = globalScope.resolve(className);
