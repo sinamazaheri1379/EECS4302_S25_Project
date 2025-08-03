@@ -1,39 +1,25 @@
 package semantic;
 
 import java.util.*;
-
-import semantic.symbols.ClassSymbol;
-import semantic.symbols.MethodSymbol;
+import semantic.symbols.*;
 
 /**
- * Unified SymbolTable class that combines scope management with symbol storage.
- * This implementation merges the functionality of the original Scope and SymbolTable classes
- * into a single, cohesive symbol table implementation.
- * 
- * A symbol table represents a scope in the program (global, class, method, block)
- * and manages all symbols defined within that scope.
+ * Symbol table implementation for managing scopes and symbols.
+ * Replaces the old Scope class with a cleaner design.
  */
 public class SymbolTable {
-    // Table identification
-    private String scopeName;
-    private ScopeType scopeType;
+    private final String scopeName;
+    private final ScopeType scopeType;
+    private final SymbolTable parent;
+    private final Map<String, Symbol> symbols;
+    private final List<SymbolTable> children;
     
-    // Hierarchy management
-    private SymbolTable parent;
-    private List<SymbolTable> children;
-    
-    // Symbol storage
-    private Map<String, Symbol> symbols;
-    
-    // Context tracking (for semantic analysis)
+    // Context information
     private ClassSymbol enclosingClass;
-    private MethodSymbol enclosingMethod;
-    
-    // Optional thread safety
-    private final Object lock = new Object();
+    private FunctionSymbol enclosingMethod;  // Can be MethodSymbol
     
     /**
-     * Types of symbol tables/scopes in the compiler.
+     * Scope types for different contexts.
      */
     public enum ScopeType {
         GLOBAL("global"),
@@ -41,10 +27,9 @@ public class SymbolTable {
         METHOD("method"),
         CONSTRUCTOR("constructor"),
         BLOCK("block"),
-        FOR_LOOP("for"),
-        WHILE_LOOP("while"),
-        IF_BLOCK("if"),
-        ELSE_BLOCK("else");
+        FOR("for"),
+        WHILE("while"),
+        IF("if");
         
         private final String name;
         
@@ -57,117 +42,92 @@ public class SymbolTable {
         }
     }
     
-    // ===== CONSTRUCTORS =====
-    
     /**
-     * Create a new symbol table with a name, type, and optional parent.
+     * Create a new symbol table with given name, type and parent.
      */
     public SymbolTable(String scopeName, ScopeType scopeType, SymbolTable parent) {
         this.scopeName = scopeName;
         this.scopeType = scopeType;
         this.parent = parent;
+        this.symbols = new LinkedHashMap<>();  // Preserve insertion order
         this.children = new ArrayList<>();
-        this.symbols = new LinkedHashMap<>(); // Preserve insertion order
         
-        // Register with parent
+        // Inherit context from parent
         if (parent != null) {
-            parent.addChild(this);
-            // Inherit enclosing context from parent
+            parent.children.add(this);
             this.enclosingClass = parent.enclosingClass;
             this.enclosingMethod = parent.enclosingMethod;
         }
     }
     
     /**
-     * Create a global symbol table (no parent).
+     * Factory method for creating a global scope.
      */
-    public SymbolTable() {
-        this("global", ScopeType.GLOBAL, null);
-    }
-    
-    // ===== FACTORY METHODS =====
-    
-    /**
-     * Create a symbol table for a class.
-     */
-    public static SymbolTable createClassTable(String className, SymbolTable parent, ClassSymbol classSymbol) {
-        SymbolTable table = new SymbolTable(className, ScopeType.CLASS, parent);
-        table.enclosingClass = classSymbol;
-        table.enclosingMethod = null; // Reset method context
-        return table;
+    public static SymbolTable createGlobalScope() {
+        return new SymbolTable("global", ScopeType.GLOBAL, null);
     }
     
     /**
-     * Create a symbol table for a method.
+     * Factory method for creating a class scope.
      */
-    public static SymbolTable createMethodTable(String methodName, SymbolTable parent, MethodSymbol methodSymbol) {
-        SymbolTable table = new SymbolTable(methodName, ScopeType.METHOD, parent);
-        table.enclosingMethod = methodSymbol;
-        return table;
+    public static SymbolTable createClassScope(String className, SymbolTable parent, ClassSymbol classSymbol) {
+        SymbolTable scope = new SymbolTable(className + "_class", ScopeType.CLASS, parent);
+        scope.enclosingClass = classSymbol;
+        scope.enclosingMethod = null;  // Reset method context
+        return scope;
     }
     
     /**
-     * Create a symbol table for a constructor.
+     * Factory method for creating a method scope.
      */
-    public static SymbolTable createConstructorTable(String className, SymbolTable parent) {
-        return new SymbolTable(className + "_constructor", ScopeType.CONSTRUCTOR, parent);
+    public static SymbolTable createMethodScope(String methodName, SymbolTable parent, FunctionSymbol methodSymbol) {
+        SymbolTable scope = new SymbolTable(methodName + "_method", ScopeType.METHOD, parent);
+        scope.enclosingMethod = methodSymbol;
+        return scope;
     }
     
     /**
-     * Create a symbol table for a block.
+     * Factory method for creating a constructor scope.
      */
-    public static SymbolTable createBlockTable(SymbolTable parent) {
-        return new SymbolTable("block_" + System.nanoTime(), ScopeType.BLOCK, parent);
+    public static SymbolTable createConstructorScope(String constructorName, SymbolTable parent) {
+        return new SymbolTable(constructorName + "_constructor", ScopeType.CONSTRUCTOR, parent);
     }
     
     /**
-     * Create a symbol table for a loop.
+     * Factory method for creating a block scope.
      */
-    public static SymbolTable createLoopTable(ScopeType loopType, SymbolTable parent) {
-        return new SymbolTable(loopType.getName() + "_" + System.nanoTime(), loopType, parent);
+    public static SymbolTable createBlockScope(SymbolTable parent) {
+        return new SymbolTable("block_" + parent.children.size(), ScopeType.BLOCK, parent);
     }
     
-    // ===== SYMBOL MANAGEMENT =====
-    
     /**
-     * Define a symbol in this symbol table.
+     * Define a symbol in this scope.
      * Returns true if successful, false if symbol already exists.
      */
     public boolean define(Symbol symbol) {
-        synchronized (lock) {
-            if (symbols.containsKey(symbol.getName())) {
-                return false;
-            }
-            symbols.put(symbol.getName(), symbol);
-            symbol.setSymbolTable(this); // Use existing setScope method
-            return true;
+        if (symbols.containsKey(symbol.getName())) {
+            return false;
         }
+        symbols.put(symbol.getName(), symbol);
+        return true;
     }
     
     /**
-     * Alternative define method that throws exception on redefinition.
+     * Resolve a symbol by name in this scope only (not parents).
      */
-    public void defineOrThrow(Symbol symbol) throws RedefinitionException {
-        if (!define(symbol)) {
-            throw new RedefinitionException(
-                String.format("Symbol '%s' already defined in %s '%s'", 
-                    symbol.getName(), scopeType.getName(), scopeName)
-            );
-        }
+    public Symbol resolveLocal(String name) {
+        return symbols.get(name);
     }
     
     /**
-     * Look up a symbol in this table and parent tables.
+     * Resolve a symbol by name, searching up the scope chain.
      */
     public Symbol resolve(String name) {
-        synchronized (lock) {
-            Symbol symbol = symbols.get(name);
-            if (symbol != null) {
-                return symbol;
-            }
+        Symbol symbol = symbols.get(name);
+        if (symbol != null) {
+            return symbol;
         }
         
-        // Check parent table
         if (parent != null) {
             return parent.resolve(name);
         }
@@ -176,232 +136,38 @@ public class SymbolTable {
     }
     
     /**
-     * Look up a symbol only in this table (not parent tables).
+     * Get all symbols in this scope.
      */
-    public Symbol resolveLocal(String name) {
-        synchronized (lock) {
-            return symbols.get(name);
-        }
+    public Map<String, Symbol> getSymbols() {
+        return new LinkedHashMap<>(symbols);
     }
     
     /**
-     * Check if a symbol is defined (in this table or parents).
-     */
-    public boolean isDefined(String name) {
-        return resolve(name) != null;
-    }
-    
-    /**
-     * Check if a symbol is defined locally in this table.
-     */
-    public boolean isDefinedLocally(String name) {
-        synchronized (lock) {
-            return symbols.containsKey(name);
-        }
-    }
-    
-    /**
-     * Remove a symbol from this table (use with caution).
-     */
-    public boolean remove(String name) {
-        synchronized (lock) {
-            return symbols.remove(name) != null;
-        }
-    }
-    
-    // ===== HIERARCHY MANAGEMENT =====
-    
-    /**
-     * Add a child symbol table.
-     */
-    private void addChild(SymbolTable child) {
-        synchronized (lock) {
-            children.add(child);
-        }
-    }
-    
-    /**
-     * Get the parent symbol table.
-     */
-    public SymbolTable getParent() {
-        return parent;
-    }
-    
-    /**
-     * Get all child symbol tables.
-     */
-    public List<SymbolTable> getChildren() {
-        synchronized (lock) {
-            return new ArrayList<>(children);
-        }
-    }
-    
-    /**
-     * Get the global symbol table by traversing up the parent chain.
-     */
-    public SymbolTable getGlobalTable() {
-        SymbolTable current = this;
-        while (current.parent != null) {
-            current = current.parent;
-        }
-        return current;
-    }
-    
-    /**
-     * Get the depth of this table (0 for global).
-     */
-    public int getDepth() {
-        int depth = 0;
-        SymbolTable current = this.parent;
-        while (current != null) {
-            depth++;
-            current = current.parent;
-        }
-        return depth;
-    }
-    
-    /**
-     * Find the enclosing symbol table of a specific type.
-     */
-    public SymbolTable findEnclosingTable(ScopeType type) {
-        SymbolTable current = this;
-        while (current != null) {
-            if (current.scopeType == type) {
-                return current;
-            }
-            current = current.parent;
-        }
-        return null;
-    }
-    
-    // ===== CONTEXT TRACKING =====
-    
-    /**
-     * Get the enclosing class symbol.
+     * Get the enclosing class scope, if any.
      */
     public ClassSymbol getEnclosingClass() {
         return enclosingClass;
     }
     
     /**
-     * Set the enclosing class for this table.
+     * Get the enclosing method/function scope, if any.
      */
-    public void setEnclosingClass(ClassSymbol enclosingClass) {
-        this.enclosingClass = enclosingClass;
-    }
-    
-    /**
-     * Get the enclosing method symbol.
-     */
-    public MethodSymbol getEnclosingMethod() {
+    public FunctionSymbol getEnclosingMethod() {
         return enclosingMethod;
     }
     
     /**
-     * Set the enclosing method for this table.
+     * Get the parent scope.
      */
-    public void setEnclosingMethod(MethodSymbol enclosingMethod) {
-        this.enclosingMethod = enclosingMethod;
+    public SymbolTable getParent() {
+        return parent;
     }
-    
-    /**
-     * Check if this table is in a static context.
-     */
-    public boolean isStaticContext() {
-        return enclosingMethod != null && enclosingMethod.isStatic();
-    }
-    
-    /**
-     * Check if this table is inside a loop.
-     */
-    public boolean isInLoop() {
-        return findEnclosingTable(ScopeType.FOR_LOOP) != null ||
-               findEnclosingTable(ScopeType.WHILE_LOOP) != null;
-    }
-    
-    // ===== SYMBOL RETRIEVAL =====
-    
-    /**
-     * Get all symbols defined in this table.
-     */
-    public Collection<Symbol> getSymbols() {
-        synchronized (lock) {
-            return new ArrayList<>(symbols.values());
-        }
-    }
-    
-    /**
-     * Get symbol map (defensive copy).
-     */
-    public Map<String, Symbol> getSymbolMap() {
-        synchronized (lock) {
-            return new LinkedHashMap<>(symbols);
-        }
-    }
-    
-    /**
-     * Get all symbols including inherited ones from parent tables.
-     */
-    public Map<String, Symbol> getAllSymbols() {
-        Map<String, Symbol> allSymbols = new LinkedHashMap<>();
-        
-        // Add parent symbols first (they get shadowed by local symbols)
-        if (parent != null) {
-            allSymbols.putAll(parent.getAllSymbols());
-        }
-        
-        // Override with local symbols
-        synchronized (lock) {
-            allSymbols.putAll(symbols);
-        }
-        
-        return allSymbols;
-    }
-    
-    /**
-     * Get symbols of a specific type.
-     */
-    public <T extends Symbol> List<T> getSymbolsOfType(Class<T> symbolClass) {
-        List<T> result = new ArrayList<>();
-        synchronized (lock) {
-            for (Symbol symbol : symbols.values()) {
-                if (symbolClass.isInstance(symbol)) {
-                    result.add(symbolClass.cast(symbol));
-                }
-            }
-        }
-        return result;
-    }
-    
-    /**
-     * Count symbols of a specific type.
-     */
-    public <T extends Symbol> int countSymbolsOfType(Class<T> symbolClass) {
-        int count = 0;
-        synchronized (lock) {
-            for (Symbol symbol : symbols.values()) {
-                if (symbolClass.isInstance(symbol)) {
-                    count++;
-                }
-            }
-        }
-        return count;
-    }
-    
-    // ===== TABLE PROPERTIES =====
     
     /**
      * Get the scope name.
      */
     public String getScopeName() {
         return scopeName;
-    }
-    
-    /**
-     * Set the scope name.
-     */
-    public void setScopeName(String scopeName) {
-        this.scopeName = scopeName;
     }
     
     /**
@@ -412,171 +178,57 @@ public class SymbolTable {
     }
     
     /**
-     * Check if this is the global symbol table.
+     * Get child scopes.
      */
-    public boolean isGlobalTable() {
-        return scopeType == ScopeType.GLOBAL && parent == null;
+    public List<SymbolTable> getChildren() {
+        return new ArrayList<>(children);
     }
     
     /**
-     * Check if this is a class symbol table.
+     * Check if this is the global scope.
      */
-    public boolean isClassTable() {
+    public boolean isGlobalScope() {
+        return scopeType == ScopeType.GLOBAL;
+    }
+    
+    /**
+     * Check if this is a class scope.
+     */
+    public boolean isClassScope() {
         return scopeType == ScopeType.CLASS;
     }
     
     /**
-     * Check if this is a method symbol table.
+     * Check if this is a method scope.
      */
-    public boolean isMethodTable() {
-        return scopeType == ScopeType.METHOD;
+    public boolean isMethodScope() {
+        return scopeType == ScopeType.METHOD || scopeType == ScopeType.CONSTRUCTOR;
     }
     
     /**
-     * Get the number of symbols in this table.
+     * Print the symbol table for debugging.
      */
-    public int size() {
-        synchronized (lock) {
-            return symbols.size();
-        }
+    public void printSymbolTable() {
+        printSymbolTable(0);
     }
     
-    /**
-     * Check if this table is empty.
-     */
-    public boolean isEmpty() {
-        synchronized (lock) {
-            return symbols.isEmpty();
+    private void printSymbolTable(int indent) {
+        String indentStr = "  ".repeat(indent);
+        System.out.println(indentStr + "=== " + scopeName + " (" + scopeType.getName() + ") ===");
+        
+        // Print symbols
+        for (Map.Entry<String, Symbol> entry : symbols.entrySet()) {
+            System.out.println(indentStr + "  " + entry.getValue().toString());
+        }
+        
+        // Print children
+        for (SymbolTable child : children) {
+            child.printSymbolTable(indent + 1);
         }
     }
-    
-    /**
-     * Clear all symbols from this table.
-     */
-    public void clear() {
-        synchronized (lock) {
-            symbols.clear();
-        }
-    }
-    
-    // ===== DISPLAY AND DEBUGGING =====
     
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("SymbolTable[").append(scopeType.getName()).append(":").append(scopeName).append("]");
-        
-        if (!symbols.isEmpty()) {
-            sb.append(" {");
-            boolean first = true;
-            synchronized (lock) {
-                for (Map.Entry<String, Symbol> entry : symbols.entrySet()) {
-                    if (!first) sb.append(", ");
-                    sb.append(entry.getKey()).append(": ").append(entry.getValue().getType());
-                    first = false;
-                }
-            }
-            sb.append("}");
-        }
-        
-        return sb.toString();
-    }
-    
-    /**
-     * Get detailed string representation.
-     */
-    public String toDetailedString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("=== Symbol Table: ").append(scopeName).append(" ===\n");
-        sb.append("Type: ").append(scopeType.getName()).append("\n");
-        sb.append("Depth: ").append(getDepth()).append("\n");
-        
-        if (enclosingClass != null) {
-            sb.append("Enclosing Class: ").append(enclosingClass.getName()).append("\n");
-        }
-        
-        if (enclosingMethod != null) {
-            sb.append("Enclosing Method: ").append(enclosingMethod.getName()).append("\n");
-        }
-        
-        sb.append("Symbols (").append(size()).append("):\n");
-        synchronized (lock) {
-            for (Symbol symbol : symbols.values()) {
-                sb.append("  - ").append(symbol.toString()).append("\n");
-            }
-        }
-        
-        if (!children.isEmpty()) {
-            sb.append("Child Tables: ").append(children.size()).append("\n");
-        }
-        
-        return sb.toString();
-    }
-    
-    /**
-     * Print the symbol table hierarchy.
-     */
-    public void printHierarchy() {
-        printHierarchy("");
-    }
-    
-    private void printHierarchy(String indent) {
-        System.out.println(indent + toString());
-        for (SymbolTable child : getChildren()) {
-            child.printHierarchy(indent + "  ");
-        }
-    }
-    
-    /**
-     * Generate a DOT graph representation of the symbol table hierarchy.
-     */
-    public String toDotGraph() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("digraph SymbolTable {\n");
-        sb.append("  node [shape=record];\n");
-        generateDotNodes(sb, new HashSet<>());
-        generateDotEdges(sb, new HashSet<>());
-        sb.append("}\n");
-        return sb.toString();
-    }
-    
-    private void generateDotNodes(StringBuilder sb, Set<SymbolTable> visited) {
-        if (visited.contains(this)) return;
-        visited.add(this);
-        
-        sb.append("  \"").append(System.identityHashCode(this)).append("\" [label=\"{");
-        sb.append(scopeType.getName()).append(": ").append(scopeName).append("|");
-        
-        synchronized (lock) {
-            for (Symbol symbol : symbols.values()) {
-                sb.append(symbol.getName()).append(": ").append(symbol.getType().getName()).append("\\l");
-            }
-        }
-        
-        sb.append("}\"];\n");
-        
-        for (SymbolTable child : children) {
-            child.generateDotNodes(sb, visited);
-        }
-    }
-    
-    private void generateDotEdges(StringBuilder sb, Set<SymbolTable> visited) {
-        if (visited.contains(this)) return;
-        visited.add(this);
-        
-        for (SymbolTable child : children) {
-            sb.append("  \"").append(System.identityHashCode(this));
-            sb.append("\" -> \"").append(System.identityHashCode(child)).append("\";\n");
-            child.generateDotEdges(sb, visited);
-        }
-    }
-    
-    /**
-     * Exception for symbol redefinition errors.
-     */
-    public static class RedefinitionException extends Exception {
-        public RedefinitionException(String message) {
-            super(message);
-        }
+        return scopeName + " (" + scopeType.getName() + ")";
     }
 }

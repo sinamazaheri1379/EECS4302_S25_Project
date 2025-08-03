@@ -108,6 +108,7 @@ public class SemanticError {
         this.sourceLine = null;
     }
     
+    
     // Getters
     public int getLine() { return line; }
     public int getColumn() { return column; }

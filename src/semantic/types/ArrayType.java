@@ -1,8 +1,8 @@
 package semantic.types;
 
 import java.util.Objects;
+import semantic.visitors.TypeVisitor;
 
-import semantic.analysis.TypeCompatibility;
 /**
  * Represents an array type in the type system.
  */
@@ -21,6 +21,8 @@ public class ArrayType extends Type {
      * Create a multi-dimensional array type.
      */
     public ArrayType(Type elementType, int dimensions) {
+        super(generateName(elementType, dimensions));
+        
         if (elementType == null) {
             throw new IllegalArgumentException("Element type cannot be null");
         }
@@ -39,8 +41,25 @@ public class ArrayType extends Type {
         }
     }
     
+    private static String generateName(Type elementType, int dimensions) {
+        StringBuilder sb = new StringBuilder();
+        if (elementType instanceof ArrayType) {
+            ArrayType inner = (ArrayType) elementType;
+            sb.append(inner.elementType.getName());
+            for (int i = 0; i < inner.dimensions + dimensions; i++) {
+                sb.append("[]");
+            }
+        } else {
+            sb.append(elementType.getName());
+            for (int i = 0; i < dimensions; i++) {
+                sb.append("[]");
+            }
+        }
+        return sb.toString();
+    }
+    
     /**
-     * Get the element type of this array.
+     * Get the element type of this array (one dimension less).
      */
     public Type getElementType() {
         if (dimensions == 1) {
@@ -66,16 +85,6 @@ public class ArrayType extends Type {
     }
     
     @Override
-    public String getName() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(elementType.getName());
-        for (int i = 0; i < dimensions; i++) {
-            sb.append("[]");
-        }
-        return sb.toString();
-    }
-    
-    @Override
     public boolean isReference() {
         return true;
     }
@@ -86,27 +95,31 @@ public class ArrayType extends Type {
     }
     
     @Override
-    public int getSize() {
-        // Size of array reference
-        return 8; // 64-bit reference
-    }
-    
-    /**
-     * Check if this array type is compatible with another array type.
-     */
-    public boolean isCompatibleWith(ArrayType other) {
-        // Arrays are compatible if they have the same dimensions
-        // and compatible element types
-        if (this.dimensions != other.dimensions) {
-            return false;
-        }
+    public boolean isAssignableFrom(Type other) {
+        if (this == other) return true;
         
-        return TypeCompatibility.isAssignmentCompatible(
-            this.elementType, other.elementType
-        );
+        // Null can be assigned to any array type
+        if (other.isNull()) return true;
+        
+        // Must be array type with same dimensions
+        if (!(other instanceof ArrayType)) return false;
+        
+        ArrayType otherArray = (ArrayType) other;
+        if (this.dimensions != otherArray.dimensions) return false;
+        
+        // Check element type compatibility
+        return this.elementType.isAssignableFrom(otherArray.elementType);
     }
     
+    @Override
+    public <T> T accept(TypeVisitor<T> visitor) {
+        return visitor.visitArrayType(this);
+    }
     
+    @Override
+    public String getDefaultValue() {
+        return "null";
+    }
     
     @Override
     public boolean equals(Object other) {
@@ -120,10 +133,5 @@ public class ArrayType extends Type {
     @Override
     public int hashCode() {
         return Objects.hash(elementType, dimensions);
-    }
-    
-    @Override
-    public String toString() {
-        return getName();
     }
 }

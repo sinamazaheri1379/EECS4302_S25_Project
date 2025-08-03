@@ -1,5 +1,6 @@
 package semantic.types;
 
+import semantic.visitors.TypeVisitor;
 
 /**
  * Represents the null type in the type system.
@@ -10,7 +11,7 @@ public class NullType extends Type {
     private static final NullType INSTANCE = new NullType();
     
     private NullType() {
-        // Private constructor for singleton
+        super("null");
     }
     
     /**
@@ -21,30 +22,37 @@ public class NullType extends Type {
     }
     
     @Override
-    public String getName() {
-        return "null";
-    }
-    
-    @Override
     public boolean isNull() {
         return true;
     }
     
     @Override
     public boolean isReference() {
-        return true; // null is a reference type
+        return true;
     }
     
     @Override
-    public int getSize() {
-        return 8; // Size of a reference
+    public boolean isAssignableFrom(Type other) {
+        // Only null can be assigned to null
+        return other.isNull();
+    }
+    
+    @Override
+    public <T> T accept(TypeVisitor<T> visitor) {
+        return visitor.visitNullType(this);
+    }
+    
+    @Override
+    public String getDefaultValue() {
+        return "null";
     }
     
     /**
+     * Check if null can be assigned to a given type.
      * Null can be assigned to any reference type.
      */
-    public boolean isAssignableToReferenceType() {
-        return true;
+    public boolean canBeAssignedTo(Type targetType) {
+        return targetType.isReference() && !targetType.isPrimitive();
     }
     
     @Override
@@ -56,10 +64,5 @@ public class NullType extends Type {
     @Override
     public int hashCode() {
         return System.identityHashCode(this);
-    }
-    
-    @Override
-    public String toString() {
-        return getName();
     }
 }

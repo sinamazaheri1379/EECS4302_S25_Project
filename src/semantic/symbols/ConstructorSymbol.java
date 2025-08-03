@@ -1,30 +1,41 @@
 package semantic.symbols;
 
 import java.util.*;
-
 import semantic.Symbol;
-import semantic.analysis.TypeCompatibility;
+import semantic.SymbolKind;
 import semantic.types.ConstructorType;
-import type.Type;
+import semantic.types.Type;
+import semantic.visitors.SymbolVisitor;
 
 /**
  * Symbol representing a constructor.
+ * Note: No reference to SymbolTable - scope is managed externally.
  */
 public class ConstructorSymbol extends Symbol {
     private List<VariableSymbol> parameters;
-    private Scope constructorScope;
     private VariableSymbol.Visibility visibility;
     private ClassSymbol ownerClass;
     
-    // Update ConstructorSymbol.java
     public ConstructorSymbol(String className, int line, int column) {
         super(className, new ConstructorType(className, new ArrayList<>()), line, column);
         this.parameters = new ArrayList<>();
         this.visibility = VariableSymbol.Visibility.PUBLIC;
     }
     
+    @Override
+    public SymbolKind getKind() {
+        return SymbolKind.CONSTRUCTOR;
+    }
+    
+    @Override
+    public <T> T accept(SymbolVisitor<T> visitor) {
+        return visitor.visitConstructorSymbol(this);
+    }
+    
+    // Parameter management
     public void addParameter(VariableSymbol param) {
         parameters.add(param);
+        param.setParameter(true);
         // Update constructor type
         List<Type> paramTypes = new ArrayList<>();
         for (VariableSymbol p : parameters) {
@@ -32,6 +43,7 @@ public class ConstructorSymbol extends Symbol {
         }
         this.type = new ConstructorType(name, paramTypes);
     }
+    
     public List<VariableSymbol> getParameters() { 
         return new ArrayList<>(parameters); 
     }
@@ -47,11 +59,7 @@ public class ConstructorSymbol extends Symbol {
         return null;
     }
     
-    // Scope management
-    public Scope getConstructorScope() { return constructorScope; }
-    public void setConstructorScope(Scope scope) { this.constructorScope = scope; }
-    
-    // Visibility management
+    // Visibility
     public VariableSymbol.Visibility getVisibility() { return visibility; }
     public void setVisibility(VariableSymbol.Visibility visibility) { this.visibility = visibility; }
     
@@ -67,13 +75,11 @@ public class ConstructorSymbol extends Symbol {
         return visibility == VariableSymbol.Visibility.PROTECTED;
     }
     
-    // Owner class management
+    // Owner class
     public ClassSymbol getOwnerClass() { return ownerClass; }
     public void setOwnerClass(ClassSymbol ownerClass) { this.ownerClass = ownerClass; }
     
-    /**
-     * Get the parameter types as a list.
-     */
+    // Type compatibility
     public List<Type> getParameterTypes() {
         List<Type> types = new ArrayList<>();
         for (VariableSymbol param : parameters) {
@@ -82,9 +88,6 @@ public class ConstructorSymbol extends Symbol {
         return types;
     }
     
-    /**
-     * Check if this constructor matches a given parameter signature.
-     */
     public boolean matchesSignature(List<Type> argTypes) {
         if (parameters.size() != argTypes.size()) {
             return false;
@@ -99,10 +102,6 @@ public class ConstructorSymbol extends Symbol {
         return true;
     }
     
-    /**
-     * Check if this constructor is compatible with given argument types.
-     * Allows for widening conversions.
-     */
     public boolean isCompatibleWith(List<Type> argTypes) {
         if (parameters.size() != argTypes.size()) {
             return false;
@@ -111,7 +110,7 @@ public class ConstructorSymbol extends Symbol {
         for (int i = 0; i < parameters.size(); i++) {
             Type paramType = parameters.get(i).getType();
             Type argType = argTypes.get(i);
-            if (!TypeCompatibility.isAssignmentCompatible(paramType, argType)) {
+            if (!paramType.isAssignableFrom(argType)) {
                 return false;
             }
         }
@@ -119,9 +118,6 @@ public class ConstructorSymbol extends Symbol {
         return true;
     }
     
-    /**
-     * Get a signature string for this constructor.
-     */
     public String getSignature() {
         StringBuilder sb = new StringBuilder();
         sb.append(name).append("(");
@@ -134,24 +130,13 @@ public class ConstructorSymbol extends Symbol {
     }
     
     @Override
-    protected String getSymbolKind() {
-        return "constructor";
-    }
-    
-    @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         
-        // Visibility
-        if (visibility == VariableSymbol.Visibility.PUBLIC) {
-            sb.append("public ");
-        } else if (visibility == VariableSymbol.Visibility.PRIVATE) {
-            sb.append("private ");
-        } else if (visibility == VariableSymbol.Visibility.PROTECTED) {
-            sb.append("protected ");
+        if (visibility != VariableSymbol.Visibility.DEFAULT) {
+            sb.append(visibility.getKeyword()).append(" ");
         }
         
-        // Constructor name and parameters
         sb.append(name).append("(");
         for (int i = 0; i < parameters.size(); i++) {
             if (i > 0) sb.append(", ");

@@ -2,64 +2,63 @@ package semantic.analysis;
 
 import generated.*;
 import generated.TypeCheckerParser.*;
-import semantic.SemanticError;
-import semantic.Symbol;
-import semantic.symbols.ClassSymbol;
-import semantic.symbols.ConstructorSymbol;
-import semantic.symbols.FunctionSymbol;
-import semantic.symbols.MethodSymbol;
-import semantic.symbols.VariableSymbol;
-import semantic.types.ArrayType;
-import semantic.types.ClassType;
-import semantic.types.ErrorType;
-import semantic.types.PrimitiveType;
-import type.Type;
+import semantic.*;
+import semantic.symbols.*;
+import semantic.types.*;
 
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import java.util.*;
 
+/**
+ * First pass of semantic analysis: builds the symbol table.
+ * This visitor traverses the AST and creates symbols for all declarations.
+ */
 public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
-    private Scope globalScope;
-    private Scope currentScope;
+    private SymbolTable globalScope;
+    private SymbolTable currentScope;
     private ClassSymbol currentClass;
     private List<SemanticError> errors;
     private Set<String> imports;
     
     public SymbolTableBuilder() {
-        this.globalScope = new Scope("global", null);
+        this.globalScope = SymbolTable.createGlobalScope();
         this.currentScope = globalScope;
         this.errors = new ArrayList<>();
         this.imports = new HashSet<>();
         
         // Define built-in functions
-        defineBuildInFunctions();
+        defineBuiltInFunctions();
     }
     
-    private void defineBuildInFunctions() {
+    private void defineBuiltInFunctions() {
         // Define built-in print function
         FunctionSymbol printFunc = new FunctionSymbol("print", PrimitiveType.VOID, 0, 0);
-        printFunc.addParameter(new VariableSymbol("value", PrimitiveType.STRING, 0, 0));
+        VariableSymbol printParam = new VariableSymbol("value", PrimitiveType.STRING, 0, 0);
+        printParam.setParameter(true);
+        printFunc.addParameter(printParam);
         globalScope.define(printFunc);
         
         // Define built-in println function
         FunctionSymbol printlnFunc = new FunctionSymbol("println", PrimitiveType.VOID, 0, 0);
-        printlnFunc.addParameter(new VariableSymbol("value", PrimitiveType.STRING, 0, 0));
+        VariableSymbol printlnParam = new VariableSymbol("value", PrimitiveType.STRING, 0, 0);
+        printlnParam.setParameter(true);
+        printlnFunc.addParameter(printlnParam);
         globalScope.define(printlnFunc);
     }
     
-    public Scope getGlobalScope() { return globalScope; }
+    public SymbolTable getGlobalScope() { return globalScope; }
     public List<SemanticError> getErrors() { return errors; }
     public Set<String> getImports() { return imports; }
     
-    private void addError(Token token, String message, SemanticError.ErrorType type) {
-        errors.add(new SemanticError(
-            token.getLine(),
-            token.getCharPositionInLine(),
-            message,
-            type
-        ));
+    private void reportError(Token token, String message, SemanticError.ErrorType type) {
+        errors.add(new SemanticError(token, message, type));
+    }
+    
+    // Alternative when you don't have a token:
+    private void reportError(int line, int column, String message, SemanticError.ErrorType type) {
+        errors.add(new SemanticError(line, column, message, type));
     }
     
     @Override
@@ -98,7 +97,7 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         Token token = ctx.ID(0).getSymbol();
         
         if (currentScope.resolveLocal(className) != null) {
-            addError(token,
+            reportError(token,
                 "Class '" + className + "' is already defined",
                 SemanticError.ErrorType.REDEFINITION
             );
@@ -127,19 +126,19 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
             Symbol superSymbol = currentScope.resolve(superClassName);
             
             if (superSymbol == null) {
-                addError(ctx.ID(1).getSymbol(),
+                reportError(ctx.ID(1).getSymbol(),
                     "Superclass '" + superClassName + "' not found",
                     SemanticError.ErrorType.UNDEFINED_CLASS
                 );
             } else if (!(superSymbol instanceof ClassSymbol)) {
-                addError(ctx.ID(1).getSymbol(),
+                reportError(ctx.ID(1).getSymbol(),
                     "'" + superClassName + "' is not a class",
                     SemanticError.ErrorType.TYPE_MISMATCH
                 );
             } else {
                 ClassSymbol superClass = (ClassSymbol) superSymbol;
                 if (hasCircularInheritance(classSymbol, superClass)) {
-                    addError(ctx.ID(1).getSymbol(),
+                    reportError(ctx.ID(1).getSymbol(),
                         "Circular inheritance detected",
                         SemanticError.ErrorType.CIRCULAR_INHERITANCE
                     );
@@ -151,9 +150,8 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         
         // Enter class scope
         currentClass = classSymbol;
-        Scope savedScope = currentScope;
-        currentScope = Scope.createClassScope(className, globalScope, classSymbol);
-        classSymbol.setMemberScope(currentScope);
+        SymbolTable savedScope = currentScope;
+        currentScope = SymbolTable.createClassScope(className, globalScope, classSymbol);
         
         // Define 'this' in class scope
         VariableSymbol thisSymbol = new VariableSymbol("this", classSymbol.getType(), 0, 0);
@@ -203,7 +201,7 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
             Token token = declarator.ID().getSymbol();
             
             if (currentScope.resolveLocal(name) != null) {
-                addError(token,
+                reportError(token,
                     "Field '" + name + "' is already defined in this class",
                     SemanticError.ErrorType.REDEFINITION
                 );
@@ -240,14 +238,7 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         Type returnType = funcDecl.VOID() != null ? 
             PrimitiveType.VOID : getType(funcDecl.type());
         
-        // Check for redefinition
-        if (currentScope.resolveLocal(methodName) != null) {
-            addError(token,
-                "Method '" + methodName + "' is already defined in this class",
-                SemanticError.ErrorType.REDEFINITION
-            );
-            return null;
-        }
+        // Note: We allow method overloading, so we don't check for redefinition here
         
         MethodSymbol method = new MethodSymbol(methodName, returnType, token.getLine(), token.getCharPositionInLine());
         method.setVisibility(visibility);
@@ -255,19 +246,15 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         method.setOwnerClass(currentClass);
         
         // Create method scope
-        Scope methodScope = Scope.createMethodScope(methodName, currentScope, method);
-        method.setFunctionScope(methodScope);
+        SymbolTable methodScope = SymbolTable.createMethodScope(methodName, currentScope, method);
         
         // Process parameters
-        Scope savedScope = currentScope;
+        SymbolTable savedScope = currentScope;
         currentScope = methodScope;
         
         if (funcDecl.paramList() != null) {
             processParameters(funcDecl.paramList(), method);
         }
-        
-        // Define method in class scope
-        savedScope.define(method);
         
         // Add to class method list for overloading support
         if (currentClass != null) {
@@ -294,7 +281,7 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         
         // Verify constructor name matches class name
         if (currentClass == null || !constructorName.equals(currentClass.getName())) {
-            addError(token,
+            reportError(token,
                 "Constructor name must match class name",
                 SemanticError.ErrorType.CONSTRUCTOR_ERROR
             );
@@ -309,13 +296,12 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         constructor.setVisibility(visibility);
         
         // Create constructor scope
-        Scope constructorScope = Scope.createMethodScope(
-            constructorName + "_constructor", currentScope, null
+        SymbolTable constructorScope = SymbolTable.createConstructorScope(
+            constructorName, currentScope
         );
-        constructor.setConstructorScope(constructorScope);
         
         // Process parameters
-        Scope savedScope = currentScope;
+        SymbolTable savedScope = currentScope;
         currentScope = constructorScope;
         
         List<VariableSymbol> params = new ArrayList<>();
@@ -333,7 +319,7 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         boolean isDuplicate = false;
         for (ConstructorSymbol existing : currentClass.getConstructors()) {
             if (hasSameParameterTypes(existing.getParameters(), params)) {
-                addError(token,
+                reportError(token,
                     "Constructor with same parameter types already defined",
                     SemanticError.ErrorType.REDEFINITION
                 );
@@ -367,7 +353,7 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
             Token token = declarator.ID().getSymbol();
             
             if (currentScope.resolveLocal(name) != null) {
-                addError(token,
+                reportError(token,
                     "Global variable '" + name + "' is already defined",
                     SemanticError.ErrorType.REDEFINITION
                 );
@@ -399,7 +385,7 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
             PrimitiveType.VOID : getType(ctx.type());
         
         if (currentScope.resolveLocal(funcName) != null) {
-            addError(token,
+            reportError(token,
                 "Function '" + funcName + "' is already defined",
                 SemanticError.ErrorType.REDEFINITION
             );
@@ -408,10 +394,9 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         
         FunctionSymbol function = new FunctionSymbol(funcName, returnType, token.getLine(), token.getCharPositionInLine());
         
-        Scope functionScope = new Scope(funcName + "_scope", currentScope);
-        function.setFunctionScope(functionScope);
+        SymbolTable functionScope = SymbolTable.createMethodScope(funcName, currentScope, function);
         
-        Scope savedScope = currentScope;
+        SymbolTable savedScope = currentScope;
         currentScope = functionScope;
         
         if (ctx.paramList() != null) {
@@ -428,6 +413,23 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
     }
     
     @Override
+    public Void visitBlock(BlockContext ctx) {
+        // Create a new block scope
+        SymbolTable blockScope = SymbolTable.createBlockScope(currentScope);
+        SymbolTable savedScope = currentScope;
+        currentScope = blockScope;
+        
+        // Visit all statements in the block
+        for (var stmt : ctx.statement()) {
+            visit(stmt);
+        }
+        
+        // Restore previous scope
+        currentScope = savedScope;
+        return null;
+    }
+    
+    @Override
     public Void visitVarDecl(VarDeclContext ctx) {
         Type type = getType(ctx.type());
         boolean isFinal = ctx.FINAL() != null;
@@ -437,7 +439,7 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
             Token token = declarator.ID().getSymbol();
             
             if (currentScope.resolveLocal(name) != null) {
-                addError(token,
+                reportError(token,
                     "Variable '" + name + "' is already defined in this scope",
                     SemanticError.ErrorType.REDEFINITION
                 );
@@ -463,7 +465,6 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         Type result = baseType;
         
         // Count array dimensions by looking for '[' tokens after the ID
-        int tokenIndex = 0;
         for (int i = 0; i < declarator.getChildCount(); i++) {
             ParseTree child = declarator.getChild(i);
             if (child instanceof TerminalNode) {
@@ -506,6 +507,7 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
             paramName, paramType, paramToken.getLine(), paramToken.getCharPositionInLine()
         );
         paramSymbol.setInitialized(true);
+        paramSymbol.setParameter(true);
         
         if (param.FINAL() != null) {
             paramSymbol.setFinal(true);
@@ -513,7 +515,7 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         
         // Check for duplicate parameters
         if (currentScope.resolveLocal(paramName) != null) {
-            addError(paramToken,
+            reportError(paramToken,
                 "Duplicate parameter name '" + paramName + "'",
                 SemanticError.ErrorType.REDEFINITION
             );

@@ -1,31 +1,20 @@
 package semantic.types;
 
-import semantic.analysis.TypeCompatibility;
 import semantic.symbols.ClassSymbol;
-import type.Type;
+import semantic.visitors.TypeVisitor;
 
 /**
  * Represents a class type in the type system.
  */
 public class ClassType extends Type {
-    private final String name;
     private ClassSymbol classSymbol;
-    private ClassSymbol superClass;
     
     /**
      * Create a class type with a name and optional class symbol.
      */
     public ClassType(String name, ClassSymbol classSymbol) {
-        this.name = name;
+        super(name);
         this.classSymbol = classSymbol;
-        if (classSymbol != null && classSymbol.getSuperClass() != null) {
-            this.superClass = classSymbol.getSuperClass();
-        }
-    }
-    
-    @Override
-    public String getName() {
-        return name;
     }
     
     public ClassSymbol getClassSymbol() {
@@ -34,17 +23,6 @@ public class ClassType extends Type {
     
     public void setClassSymbol(ClassSymbol classSymbol) {
         this.classSymbol = classSymbol;
-        if (classSymbol != null && classSymbol.getSuperClass() != null) {
-            this.superClass = classSymbol.getSuperClass();
-        }
-    }
-    
-    public ClassSymbol getSuperClass() {
-        return superClass;
-    }
-    
-    public void setSuperClass(ClassSymbol superClass) {
-        this.superClass = superClass;
     }
     
     @Override
@@ -58,58 +36,50 @@ public class ClassType extends Type {
     }
     
     @Override
-    public int getSize() {
-        // Size of a reference (pointer)
-        return 8; // 64-bit reference
+    public boolean isAssignableFrom(Type other) {
+        if (this == other) return true;
+        
+        // Null can be assigned to any class type
+        if (other.isNull()) return true;
+        
+        // Must be a class type
+        if (!(other instanceof ClassType)) return false;
+        
+        ClassType otherClass = (ClassType) other;
+        
+        // If we don't have symbol information, use name comparison
+        if (this.classSymbol == null || otherClass.classSymbol == null) {
+            return this.name.equals(otherClass.name);
+        }
+        
+        // Check if other is a subclass of this
+        return isSubclassOf(otherClass);
     }
     
     /**
-     * Check if this class type is a subtype of another class type.
+     * Check if the other class is a subclass of this class.
      */
-    public boolean isSubtypeOf(ClassType other) {
-        if (this.equals(other)) {
-            return true;
-        }
+    private boolean isSubclassOf(ClassType other) {
+        ClassSymbol current = other.classSymbol;
         
-        if (classSymbol == null || other.classSymbol == null) {
-            return false;
-        }
-        
-        return TypeCompatibility.isSubtypeOf(this, other);
-    }
-    
-    /**
-     * Check if this class implements an interface.
-     */
-    public boolean implementsInterface(ClassType interfaceType) {
-        if (classSymbol == null || interfaceType.classSymbol == null) {
-            return false;
-        }
-        
-        // Check direct implementation
-        for (ClassSymbol iface : classSymbol.getInterfaces()) {
-            if (iface == interfaceType.classSymbol) {
+        while (current != null) {
+            if (current == this.classSymbol) {
                 return true;
             }
-        }
-        
-        // Check superclass
-        if (superClass != null) {
-            ClassType superType = new ClassType(superClass.getName(), superClass);
-            return superType.implementsInterface(interfaceType);
+            current = current.getSuperClass();
         }
         
         return false;
     }
     
-    /**
-     * Get the fully qualified name of this class.
-     */
-    public String getQualifiedName() {
-        if (classSymbol != null) {
-            return classSymbol.getQualifiedName();
-        }
-        return name;
+    @Override
+    public <T> T accept(TypeVisitor<T> visitor) {
+        return visitor.visitClassType(this);
+    }
+    
+    @Override
+    public String getDefaultValue() {
+        return "null";
     }
     
     @Override
@@ -119,25 +89,17 @@ public class ClassType extends Type {
         
         ClassType that = (ClassType) other;
         
-        // Compare by name first
-        if (!name.equals(that.name)) return false;
-        
         // If both have symbols, compare symbols
         if (classSymbol != null && that.classSymbol != null) {
             return classSymbol == that.classSymbol;
         }
         
-        // Otherwise, just compare names
-        return true;
+        // Otherwise, compare names
+        return name.equals(that.name);
     }
     
     @Override
     public int hashCode() {
         return name.hashCode();
-    }
-    
-    @Override
-    public String toString() {
-        return name;
     }
 }

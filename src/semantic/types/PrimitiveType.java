@@ -1,5 +1,6 @@
 package semantic.types;
 
+import semantic.visitors.TypeVisitor;
 
 /**
  * Represents primitive types in the language.
@@ -8,29 +9,24 @@ package semantic.types;
 public class PrimitiveType extends Type {
     
     // Singleton instances for each primitive type
-    public static final PrimitiveType INT = new PrimitiveType("int", 4);
-    public static final PrimitiveType FLOAT = new PrimitiveType("float", 4);
-    public static final PrimitiveType BOOLEAN = new PrimitiveType("boolean", 1);
-    public static final PrimitiveType CHAR = new PrimitiveType("char", 2);
-    public static final PrimitiveType STRING = new PrimitiveType("string", 8); // Reference to string object
-    public static final PrimitiveType VOID = new PrimitiveType("void", 0);
+    public static final PrimitiveType INT = new PrimitiveType("int", 4, true, true, false);
+    public static final PrimitiveType FLOAT = new PrimitiveType("float", 4, true, false, true);
+    public static final PrimitiveType BOOLEAN = new PrimitiveType("boolean", 1, false, false, false);
+    public static final PrimitiveType CHAR = new PrimitiveType("char", 2, false, true, false);
+    public static final PrimitiveType STRING = new PrimitiveType("string", 8, false, false, false); // Reference to string object
+    public static final PrimitiveType VOID = new PrimitiveType("void", 0, false, false, false);
     
-    private final String name;
     private final int size;
+    private final boolean numeric;
+    private final boolean integral;
+    private final boolean floatingPoint;
     
-    private PrimitiveType(String name, int size) {
-        this.name = name;
+    private PrimitiveType(String name, int size, boolean numeric, boolean integral, boolean floatingPoint) {
+        super(name);
         this.size = size;
-    }
-    
-    @Override
-    public String getName() {
-        return name;
-    }
-    
-    @Override
-    public int getSize() {
-        return size;
+        this.numeric = numeric;
+        this.integral = integral;
+        this.floatingPoint = floatingPoint;
     }
     
     @Override
@@ -44,53 +40,73 @@ public class PrimitiveType extends Type {
         return this == STRING;
     }
     
-    /**
-     * Check if this is a numeric type.
-     */
+    @Override
     public boolean isNumeric() {
-        return this == INT || this == FLOAT;
+        return numeric;
     }
     
-    /**
-     * Check if this is an integral type.
-     */
+    @Override
+    public boolean isBoolean() {
+        return this == BOOLEAN;
+    }
+    
+    @Override
+    public boolean isVoid() {
+        return this == VOID;
+    }
+    
     public boolean isIntegral() {
-        return this == INT || this == CHAR;
+        return integral;
     }
     
-    /**
-     * Get the result type of a binary operation between two primitive types.
-     */
-    public static PrimitiveType getBinaryOpResultType(PrimitiveType left, PrimitiveType right, String op) {
-        // Arithmetic operations
-        if (op.equals("+") || op.equals("-") || op.equals("*") || op.equals("/") || op.equals("%")) {
-            if (left.isNumeric() && right.isNumeric()) {
-                // Float takes precedence
-                if (left == FLOAT || right == FLOAT) {
-                    return FLOAT;
-                }
-                return INT;
-            }
-            // String concatenation
-            if (op.equals("+") && (left == STRING || right == STRING)) {
-                return STRING;
-            }
+    public boolean isFloatingPoint() {
+        return floatingPoint;
+    }
+    
+    public int getSize() {
+        return size;
+    }
+    
+    @Override
+    public boolean isAssignableFrom(Type other) {
+        if (this == other) return true;
+        
+        // Void is not assignable from anything
+        if (this == VOID || other.isVoid()) return false;
+        
+        // Widening primitive conversions
+        if (other.isPrimitive() && this.isNumeric() && other.isNumeric()) {
+            // int -> float
+            if (this == FLOAT && other == INT) return true;
+            // char -> int
+            if (this == INT && other == CHAR) return true;
         }
         
-        // Comparison operations
-        if (op.equals("<") || op.equals("<=") || op.equals(">") || op.equals(">=") ||
-            op.equals("==") || op.equals("!=")) {
-            return BOOLEAN;
+        return false;
+    }
+    
+    @Override
+    public <T> T accept(TypeVisitor<T> visitor) {
+        return visitor.visitPrimitiveType(this);
+    }
+    
+    @Override
+    public String getDefaultValue() {
+        switch (name) {
+            case "int":
+            case "char":
+                return "0";
+            case "float":
+                return "0.0f";
+            case "boolean":
+                return "false";
+            case "string":
+                return "null";  // String is a reference type
+            case "void":
+                return "";
+            default:
+                return "null";
         }
-        
-        // Logical operations
-        if (op.equals("&&") || op.equals("||")) {
-            if (left == BOOLEAN && right == BOOLEAN) {
-                return BOOLEAN;
-            }
-        }
-        
-        return null; // Invalid operation
     }
     
     @Override
@@ -101,11 +117,6 @@ public class PrimitiveType extends Type {
     
     @Override
     public int hashCode() {
-        return name.hashCode();
-    }
-    
-    @Override
-    public String toString() {
-        return name;
+        return System.identityHashCode(this);
     }
 }

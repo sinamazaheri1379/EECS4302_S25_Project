@@ -1,22 +1,23 @@
 package semantic.symbols;
 
 import java.util.*;
-
 import semantic.Symbol;
-import semantic.analysis.TypeCompatibility;
-import semantic.symbols.VariableSymbol.Visibility;
+import semantic.SymbolKind;
 import semantic.types.ClassType;
-import type.Type;
+import semantic.types.Type;
+import semantic.visitors.SymbolVisitor;
 
 /**
  * Symbol representing a class declaration.
+ * Note: No reference to SymbolTable - scope management is external.
  */
 public class ClassSymbol extends Symbol {
     private ClassSymbol superClass;
-    private Scope memberScope;
     private List<ClassSymbol> interfaces;
     private Map<String, List<MethodSymbol>> methods; // For overloading support
     private List<ConstructorSymbol> constructors;
+    private boolean isAbstract;
+    private boolean isFinal;
     
     public ClassSymbol(String name, int line, int column) {
         super(name, new ClassType(name, null), line, column);
@@ -24,34 +25,45 @@ public class ClassSymbol extends Symbol {
         this.interfaces = new ArrayList<>();
         this.methods = new HashMap<>();
         this.constructors = new ArrayList<>();
+        this.isAbstract = false;
+        this.isFinal = false;
     }
     
-    // Getters and setters
+    @Override
+    public SymbolKind getKind() {
+        return SymbolKind.CLASS;
+    }
+    
+    @Override
+    public <T> T accept(SymbolVisitor<T> visitor) {
+        return visitor.visitClassSymbol(this);
+    }
+    
+    // Class hierarchy
     public ClassSymbol getSuperClass() { return superClass; }
     public void setSuperClass(ClassSymbol superClass) { 
         this.superClass = superClass;
-        // Update the ClassType to reflect inheritance
-        if (this.type instanceof ClassType) {
-            ((ClassType) this.type).setSuperClass(superClass);
-        }
     }
     
-    public Scope getMemberScope() { return memberScope; }
-    public void setMemberScope(Scope memberScope) { 
-        this.memberScope = memberScope; 
-    }
+    // Modifiers
+    public boolean isAbstract() { return isAbstract; }
+    public void setAbstract(boolean isAbstract) { this.isAbstract = isAbstract; }
     
+    public boolean isFinal() { return isFinal; }
+    public void setFinal(boolean isFinal) { this.isFinal = isFinal; }
+    
+    // Interfaces
     public List<ClassSymbol> getInterfaces() { return new ArrayList<>(interfaces); }
     public void addInterface(ClassSymbol interfaceSymbol) { interfaces.add(interfaceSymbol); }
     
+    // Constructors
     public List<ConstructorSymbol> getConstructors() { return new ArrayList<>(constructors); }
     public void addConstructor(ConstructorSymbol constructor) { 
         constructors.add(constructor);
+        constructor.setOwnerClass(this);
     }
     
-    /**
-     * Add a method to this class.
-     */
+    // Methods
     public void addMethod(MethodSymbol method) {
         String methodName = method.getName();
         List<MethodSymbol> overloads = methods.computeIfAbsent(methodName, k -> new ArrayList<>());
@@ -59,17 +71,11 @@ public class ClassSymbol extends Symbol {
         method.setOwnerClass(this);
     }
     
-    /**
-     * Get all methods with a given name (for overloading).
-     */
     public List<MethodSymbol> getMethods(String name) {
         List<MethodSymbol> result = methods.get(name);
         return result != null ? new ArrayList<>(result) : new ArrayList<>();
     }
     
-    /**
-     * Get all methods in this class.
-     */
     public List<MethodSymbol> getAllMethods() {
         List<MethodSymbol> allMethods = new ArrayList<>();
         for (List<MethodSymbol> overloads : methods.values()) {
@@ -80,33 +86,14 @@ public class ClassSymbol extends Symbol {
     
     /**
      * Find a method by name and parameter types (for overloading).
+     * Note: Only searches methods directly declared in this class.
+     * Caller should check superclass if needed.
      */
     public MethodSymbol findMethod(String name, List<Type> argTypes) {
-        // First check this class
         List<MethodSymbol> overloads = methods.get(name);
         if (overloads != null) {
-            MethodSymbol bestMatch = findBestMethodMatch(overloads, argTypes);
-            if (bestMatch != null) {
-                return bestMatch;
-            }
+            return findBestMethodMatch(overloads, argTypes);
         }
-        
-        // Check member scope for compatibility with old code
-        if (memberScope != null) {
-            Symbol symbol = memberScope.resolveLocal(name);
-            if (symbol instanceof MethodSymbol) {
-                MethodSymbol method = (MethodSymbol) symbol;
-                if (isMethodCompatible(method, argTypes)) {
-                    return method;
-                }
-            }
-        }
-        
-        // Then check superclass
-        if (superClass != null) {
-            return superClass.findMethod(name, argTypes);
-        }
-        
         return null;
     }
     
@@ -115,76 +102,20 @@ public class ClassSymbol extends Symbol {
      */
     public ConstructorSymbol findConstructor(List<Type> argTypes) {
         for (ConstructorSymbol constructor : constructors) {
-            if (isConstructorCompatible(constructor, argTypes)) {
+            if (constructor.isCompatibleWith(argTypes)) {
                 return constructor;
             }
         }
         
-        // If no constructor found and no args, check for default constructor
-        if (argTypes.isEmpty() && constructors.isEmpty() && superClass == null) {
-            // Implicit default constructor
+        // If no constructor found and no args, create default
+        if (argTypes.isEmpty() && constructors.isEmpty()) {
             return createDefaultConstructor();
         }
         
         return null;
     }
     
-    /**
-     * Resolve a member (field or method) by name.
-     */
-    public Symbol resolveMember(String name) {
-        // Check this class first
-        if (memberScope != null) {
-            Symbol member = memberScope.resolveLocal(name);
-            if (member != null) {
-                return member;
-            }
-        }
-        
-        // Then check superclass
-        if (superClass != null) {
-            return superClass.resolveMember(name);
-        }
-        
-        return null;
-    }
-    
-    /**
-     * Get all fields (variables) in this class.
-     */
-    public List<VariableSymbol> getFields() {
-        List<VariableSymbol> fields = new ArrayList<>();
-        if (memberScope != null) {
-            for (Symbol symbol : memberScope.getSymbols()) {
-                if (symbol instanceof VariableSymbol && !"this".equals(symbol.getName())) {
-                    fields.add((VariableSymbol) symbol);
-                }
-            }
-        }
-        return fields;
-    }
-    
-    /**
-     * Check if this class has a default (no-arg) constructor.
-     */
-    public boolean hasDefaultConstructor() {
-        if (constructors.isEmpty()) {
-            // No explicit constructors means implicit default constructor
-            return superClass == null || superClass.hasDefaultConstructor();
-        }
-        
-        for (ConstructorSymbol constructor : constructors) {
-            if (constructor.getParameters().isEmpty()) {
-                return true;
-            }
-        }
-        
-        return false;
-    }
-    
-    /**
-     * Find the best matching method from a list of overloads.
-     */
+    // Helper methods remain the same...
     private MethodSymbol findBestMethodMatch(List<MethodSymbol> overloads, List<Type> argTypes) {
         // First pass: exact match
         for (MethodSymbol method : overloads) {
@@ -195,7 +126,7 @@ public class ClassSymbol extends Symbol {
         
         // Second pass: compatible match (with widening)
         for (MethodSymbol method : overloads) {
-            if (isMethodCompatible(method, argTypes)) {
+            if (method.isCompatibleWith(argTypes)) {
                 return method;
             }
         }
@@ -203,9 +134,6 @@ public class ClassSymbol extends Symbol {
         return null;
     }
     
-    /**
-     * Check if method parameters exactly match argument types.
-     */
     private boolean exactMatch(MethodSymbol method, List<Type> argTypes) {
         List<VariableSymbol> params = method.getParameters();
         if (params.size() != argTypes.size()) {
@@ -221,135 +149,18 @@ public class ClassSymbol extends Symbol {
         return true;
     }
     
-    /**
-     * Check if method is compatible with argument types (allowing widening).
-     */
-    private boolean isMethodCompatible(MethodSymbol method, List<Type> argTypes) {
-        List<VariableSymbol> params = method.getParameters();
-        if (params.size() != argTypes.size()) {
-            return false;
-        }
-        
-        for (int i = 0; i < params.size(); i++) {
-            Type paramType = params.get(i).getType();
-            Type argType = argTypes.get(i);
-            if (!TypeCompatibility.isAssignmentCompatible(paramType, argType)) {
-                return false;
-            }
-        }
-        
-        return true;
-    }
-    
-    /**
-     * Check if constructor is compatible with argument types.
-     */
-    private boolean isConstructorCompatible(ConstructorSymbol constructor, List<Type> argTypes) {
-        List<VariableSymbol> params = constructor.getParameters();
-        if (params.size() != argTypes.size()) {
-            return false;
-        }
-        
-        for (int i = 0; i < params.size(); i++) {
-            Type paramType = params.get(i).getType();
-            Type argType = argTypes.get(i);
-            if (!TypeCompatibility.isAssignmentCompatible(paramType, argType)) {
-                return false;
-            }
-        }
-        
-        return true;
-    }
-    
-    /**
-     * Create an implicit default constructor.
-     */
     private ConstructorSymbol createDefaultConstructor() {
         ConstructorSymbol defaultConstructor = new ConstructorSymbol(name, line, column);
         defaultConstructor.setVisibility(VariableSymbol.Visibility.PUBLIC);
+        defaultConstructor.setOwnerClass(this);
         return defaultConstructor;
-    }
-    
-    /**
-     * Check if this class is abstract.
-     */
-    public boolean isAbstract() {
-        // Check if any methods are abstract
-        for (List<MethodSymbol> overloads : methods.values()) {
-            for (MethodSymbol method : overloads) {
-                if (method.isAbstract()) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-    
-    /**
-     * Get all abstract methods that need to be implemented.
-     */
-    public List<MethodSymbol> getAbstractMethods() {
-        List<MethodSymbol> abstractMethods = new ArrayList<>();
-        Set<String> implementedMethods = new HashSet<>();
-        
-        // Collect all concrete methods in this class
-        for (List<MethodSymbol> overloads : methods.values()) {
-            for (MethodSymbol method : overloads) {
-                if (!method.isAbstract()) {
-                    implementedMethods.add(getMethodSignature(method));
-                }
-            }
-        }
-        
-        // Collect abstract methods from superclass and interfaces
-        collectAbstractMethods(abstractMethods, implementedMethods);
-        
-        return abstractMethods;
-    }
-    
-    /**
-     * Recursively collect abstract methods.
-     */
-    private void collectAbstractMethods(List<MethodSymbol> abstractMethods, Set<String> implemented) {
-        // From superclass
-        if (superClass != null) {
-            for (MethodSymbol method : superClass.getAllMethods()) {
-                if (method.isAbstract()) {
-                    String signature = getMethodSignature(method);
-                    if (!implemented.contains(signature)) {
-                        abstractMethods.add(method);
-                    }
-                }
-            }
-        }
-        
-        // From interfaces
-        for (ClassSymbol iface : interfaces) {
-            for (MethodSymbol method : iface.getAllMethods()) {
-                String signature = getMethodSignature(method);
-                if (!implemented.contains(signature)) {
-                    abstractMethods.add(method);
-                }
-            }
-        }
-    }
-    
-    /**
-     * Get a unique signature string for a method.
-     */
-    private String getMethodSignature(MethodSymbol method) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(method.getName()).append("(");
-        for (VariableSymbol param : method.getParameters()) {
-            sb.append(param.getType().getName()).append(",");
-        }
-        sb.append(")");
-        return sb.toString();
     }
     
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
+        if (isAbstract) sb.append("abstract ");
+        if (isFinal) sb.append("final ");
         sb.append("class ").append(name);
         if (superClass != null) {
             sb.append(" extends ").append(superClass.getName());

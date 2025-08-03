@@ -1,7 +1,9 @@
 package semantic.symbols;
 
 import semantic.Symbol;
-import type.Type;
+import semantic.SymbolKind;
+import semantic.types.Type;
+import semantic.visitors.SymbolVisitor;
 
 /**
  * Symbol representing a variable, field, or parameter.
@@ -11,6 +13,7 @@ public class VariableSymbol extends Symbol {
     private boolean isFinal;
     private boolean isStatic;
     private Visibility visibility;
+    private boolean isParameter;
     
     /**
      * Visibility levels for class members.
@@ -62,6 +65,19 @@ public class VariableSymbol extends Symbol {
         this.isFinal = false;
         this.isStatic = false;
         this.visibility = Visibility.DEFAULT;
+        this.isParameter = false;
+    }
+    
+    @Override
+    public SymbolKind getKind() {
+        if (isParameter) return SymbolKind.PARAMETER;
+        if (isField()) return SymbolKind.FIELD;
+        return SymbolKind.VARIABLE;
+    }
+    
+    @Override
+    public <T> T accept(SymbolVisitor<T> visitor) {
+        return visitor.visitVariableSymbol(this);
     }
     
     // Getters and setters
@@ -76,6 +92,9 @@ public class VariableSymbol extends Symbol {
     
     public Visibility getVisibility() { return visibility; }
     public void setVisibility(Visibility visibility) { this.visibility = visibility; }
+    
+    public boolean isParameter() { return isParameter; }
+    public void setParameter(boolean isParameter) { this.isParameter = isParameter; }
     
     /**
      * Check if this variable is private.
@@ -109,39 +128,21 @@ public class VariableSymbol extends Symbol {
      * Check if this variable is a local variable.
      */
     public boolean isLocal() {
-        return !isField() && !isParameter();
+        return !isField() && !isParameter;
     }
     
     /**
-     * Check if this variable is a parameter.
-     * Parameters are initialized local variables in a function scope.
+     * Check if this variable can be accessed from a given class context.
+     * Note: This is a simplified version.
      */
-    public boolean isParameter() {
-        if (!isInitialized || isField()) {
-            return false;
-        }
-        
-        // Check if this variable is in a function scope
-        if (scope != null && scope.getEnclosingMethod() != null) {
-            // Check if it's defined at the function scope level
-            return scope.getParent() != null && 
-                   scope.getEnclosingMethod().getFunctionScope() == scope;
-        }
-        
-        return false;
-    }
-    
-    /**
-     * Check if this variable can be accessed from a given context.
-     */
-    public boolean isAccessibleFrom(ClassSymbol fromClass, boolean isStatic) {
+    public boolean isAccessibleFrom(ClassSymbol fromClass, boolean isStaticContext) {
         // Local variables and parameters are always accessible within their scope
-        if (isLocal() || isParameter()) {
+        if (isLocal() || isParameter) {
             return true;
         }
         
         // Static context check
-        if (isStatic && !this.isStatic) {
+        if (isStaticContext && !this.isStatic) {
             return false;
         }
         
@@ -150,48 +151,20 @@ public class VariableSymbol extends Symbol {
             return true;
         }
         
-        // Private members are only accessible within the same class
-        if (visibility == Visibility.PRIVATE) {
-            ClassSymbol ownerClass = getOwnerClass();
-            return ownerClass != null && ownerClass == fromClass;
-        }
-        
-        // Protected members are accessible within the same class or subclasses
-        if (visibility == Visibility.PROTECTED) {
-            ClassSymbol ownerClass = getOwnerClass();
-            if (ownerClass == null) return false;
-            
-            if (ownerClass == fromClass) return true;
-            
-            // Check if fromClass is a subclass of ownerClass
-            ClassSymbol current = fromClass;
-            while (current != null) {
-                if (current == ownerClass) return true;
-                current = current.getSuperClass();
-            }
-            
-            return false;
-        }
-        
-        // Default (package) visibility - for simplicity, treat as public
+        // For other visibility levels, we'd need more context
+        // This is simplified for now
         return true;
     }
     
     /**
-     * Get the class that owns this field.
+     * Validate this variable symbol.
+     * Returns null if valid, error message otherwise.
      */
-    private ClassSymbol getOwnerClass() {
-        if (scope != null) {
-            return scope.getEnclosingClass();
+    public String validate() {
+        if (isFinal && !isInitialized && !isParameter) {
+            return "Final variable '" + name + "' must be initialized";
         }
         return null;
-    }
-    
-    @Override
-    protected String getSymbolKind() {
-        if (isParameter()) return "parameter";
-        if (isField()) return "field";
-        return "variable";
     }
     
     @Override
@@ -213,10 +186,15 @@ public class VariableSymbol extends Symbol {
         }
         
         // Type and name
-        sb.append(type.getName()).append(" ").append(name);
+        if (type != null) {
+            sb.append(type.getName()).append(" ");
+        }
+        sb.append(name);
         
-        // Initialization status
-        if (!isInitialized && isFinal) {
+        // Additional info
+        if (isParameter) {
+            sb.append(" (parameter)");
+        } else if (!isInitialized && isFinal) {
             sb.append(" (uninitialized)");
         }
         

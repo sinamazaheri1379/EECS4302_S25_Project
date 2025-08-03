@@ -66,7 +66,9 @@ public abstract class Type {
     public boolean isVoid() { return false; }
     public boolean isNull() { return false; }
     public boolean isError() { return false; }
-    
+    public boolean isConstructor() { 
+        return false; 
+    }
     /**
      * Checks if this type supports arithmetic operations (+, -, *, /, %).
      */

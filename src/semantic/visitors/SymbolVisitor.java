@@ -1,5 +1,7 @@
 package semantic.visitors;
 
+
+import semantic.Symbol;
 import semantic.symbols.*;
 
 /**

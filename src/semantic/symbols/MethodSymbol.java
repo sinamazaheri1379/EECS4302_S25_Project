@@ -1,9 +1,10 @@
 package semantic.symbols;
 
 import java.util.*;
-
+import semantic.SymbolKind;
 import semantic.types.ClassType;
-import type.Type;
+import semantic.types.Type;
+import semantic.visitors.SymbolVisitor;
 
 /**
  * Symbol representing a method in a class.
@@ -22,31 +23,17 @@ public class MethodSymbol extends FunctionSymbol {
         this.isOverride = false;
     }
     
+    @Override
+    public SymbolKind getKind() {
+        return SymbolKind.METHOD;
+    }
+    
+    @Override
+    public <T> T accept(SymbolVisitor<T> visitor) {
+        return visitor.visitMethodSymbol(this);
+    }
+    
     // Method-specific getters and setters
-    public boolean isPrivate() { 
-        return getVisibility() == VariableSymbol.Visibility.PRIVATE; 
-    }
-    
-    public void setPrivate(boolean isPrivate) { 
-        setVisibility(isPrivate ? VariableSymbol.Visibility.PRIVATE : VariableSymbol.Visibility.DEFAULT);
-    }
-    
-    public boolean isPublic() {
-        return getVisibility() == VariableSymbol.Visibility.PUBLIC;
-    }
-    
-    public void setPublic(boolean isPublic) {
-        setVisibility(isPublic ? VariableSymbol.Visibility.PUBLIC : VariableSymbol.Visibility.DEFAULT);
-    }
-    
-    public boolean isProtected() {
-        return getVisibility() == VariableSymbol.Visibility.PROTECTED;
-    }
-    
-    public void setProtected(boolean isProtected) {
-        setVisibility(isProtected ? VariableSymbol.Visibility.PROTECTED : VariableSymbol.Visibility.DEFAULT);
-    }
-    
     public boolean isAbstract() { return isAbstract; }
     public void setAbstract(boolean isAbstract) { this.isAbstract = isAbstract; }
     
@@ -60,33 +47,13 @@ public class MethodSymbol extends FunctionSymbol {
     public void setOwnerClass(ClassSymbol ownerClass) { this.ownerClass = ownerClass; }
     
     /**
-     * Get the scope for this method.
-     * For compatibility with existing code.
-     */
-    public Scope getScope() {
-        return getFunctionScope();
-    }
-    
-    /**
      * Check if this method matches a signature (for overloading).
      */
     public boolean matchesSignature(String name, List<Type> paramTypes) {
         if (!this.name.equals(name)) {
             return false;
         }
-        
-        List<VariableSymbol> params = getParameters();
-        if (params.size() != paramTypes.size()) {
-            return false;
-        }
-        
-        for (int i = 0; i < params.size(); i++) {
-            if (!params.get(i).getType().equals(paramTypes.get(i))) {
-                return false;
-            }
-        }
-        
-        return true;
+        return super.matchesSignature(paramTypes);
     }
     
     /**
@@ -256,24 +223,7 @@ public class MethodSymbol extends FunctionSymbol {
      * Cannot reduce visibility.
      */
     private boolean isAccessModifierValid(MethodSymbol superMethod) {
-        int thisLevel = getVisibilityLevel(this.getVisibility());
-        int superLevel = getVisibilityLevel(superMethod.getVisibility());
-        
-        return thisLevel >= superLevel;
-    }
-    
-    /**
-     * Get numeric level for visibility comparison.
-     * Higher number = more visible.
-     */
-    private int getVisibilityLevel(VariableSymbol.Visibility visibility) {
-        switch (visibility) {
-            case PRIVATE: return 0;
-            case DEFAULT: return 1;
-            case PROTECTED: return 2;
-            case PUBLIC: return 3;
-            default: return 1;
-        }
+        return this.getVisibility().getLevel() >= superMethod.getVisibility().getLevel();
     }
     
     @Override
@@ -281,9 +231,9 @@ public class MethodSymbol extends FunctionSymbol {
         StringBuilder sb = new StringBuilder();
         
         // Visibility
-        if (isPublic()) sb.append("public ");
-        else if (isProtected()) sb.append("protected ");
-        else if (isPrivate()) sb.append("private ");
+        if (getVisibility() != VariableSymbol.Visibility.DEFAULT) {
+            sb.append(getVisibility().getKeyword()).append(" ");
+        }
         
         // Modifiers
         if (isStatic()) sb.append("static ");

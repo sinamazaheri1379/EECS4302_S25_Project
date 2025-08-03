@@ -1,5 +1,7 @@
 package semantic.types;
 
+import semantic.visitors.TypeVisitor;
+
 /**
  * Represents an error type in the type system.
  * Used when type checking fails to prevent cascading errors.
@@ -9,7 +11,7 @@ public class ErrorType extends Type {
     private static final ErrorType INSTANCE = new ErrorType();
     
     private ErrorType() {
-        // Private constructor for singleton
+        super("<error>");
     }
     
     /**
@@ -20,28 +22,24 @@ public class ErrorType extends Type {
     }
     
     @Override
-    public String getName() {
-        return "<error>";
-    }
-    
-    @Override
     public boolean isError() {
         return true;
     }
     
     @Override
-    public int getSize() {
-        return 0; // Error types have no size
+    public boolean isAssignableFrom(Type other) {
+        // Error type accepts any type to prevent cascading errors
+        return true;
     }
     
     @Override
-    public boolean isPrimitive() {
-        return false;
+    public <T> T accept(TypeVisitor<T> visitor) {
+        return visitor.visitErrorType(this);
     }
     
     @Override
-    public boolean isReference() {
-        return false;
+    public String getDefaultValue() {
+        return "<error>";
     }
     
     /**
@@ -60,10 +58,5 @@ public class ErrorType extends Type {
     @Override
     public int hashCode() {
         return System.identityHashCode(this);
-    }
-    
-    @Override
-    public String toString() {
-        return getName();
     }
 }
