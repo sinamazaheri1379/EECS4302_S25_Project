@@ -79,7 +79,7 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         for (var decl : ctx.declaration()) {
             visit(decl);
         }
-        
+        resolveForwardReferences();
         return null;
     }
     
@@ -151,12 +151,20 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         // Enter class scope
         currentClass = classSymbol;
         SymbolTable savedScope = currentScope;
-        currentScope = SymbolTable.createClassScope(className, globalScope, classSymbol);
+        currentScope = SymbolTable.createClassScope(className, currentScope, classSymbol);
         
         // Define 'this' in class scope
         VariableSymbol thisSymbol = new VariableSymbol("this", classSymbol.getType(), 0, 0);
         thisSymbol.setInitialized(true);
         currentScope.define(thisSymbol);
+        
+        // ADD THIS: Define 'super' if class has superclass
+        if (classSymbol.getSuperClass() != null) {
+            VariableSymbol superSymbol = new VariableSymbol("super", 
+                classSymbol.getSuperClass().getType(), 0, 0);
+            superSymbol.setInitialized(true);
+            currentScope.define(superSymbol);
+        }
         
         // Process class members
         for (var member : ctx.classMember()) {
@@ -260,7 +268,7 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         if (currentClass != null) {
             currentClass.addMethod(method);
         }
-        
+        currentScope.define(method);
         // Process method body
         visit(funcDecl.block());
         
@@ -384,6 +392,17 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         Type returnType = ctx.VOID() != null ? 
             PrimitiveType.VOID : getType(ctx.type());
         
+        // ADD THIS: Handle array dimensions after parameter list
+        for (int i = 0; i < ctx.getChildCount(); i++) {
+            ParseTree child = ctx.getChild(i);
+            if (child instanceof TerminalNode) {
+                TerminalNode terminal = (TerminalNode) child;
+                if (terminal.getSymbol().getType() == TypeCheckerParser.LBRACK) {
+                    returnType = new ArrayType(returnType);
+                }
+            }
+        }
+        
         if (currentScope.resolveLocal(funcName) != null) {
             reportError(token,
                 "Function '" + funcName + "' is already defined",
@@ -427,6 +446,29 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         // Restore previous scope
         currentScope = savedScope;
         return null;
+    }
+    
+    // Add method to resolve forward references
+    public void resolveForwardReferences() {
+        for (Map.Entry<String, List<ClassType>> entry : unresolvedTypes.entrySet()) {
+            String className = entry.getKey();
+            Symbol symbol = globalScope.resolve(className);
+            
+            if (symbol instanceof ClassSymbol) {
+                ClassSymbol classSymbol = (ClassSymbol) symbol;
+                // Update all unresolved references
+                for (ClassType type : entry.getValue()) {
+                    type.setClassSymbol(classSymbol);
+                }
+            } else {
+                // Report error for truly undefined classes
+                for (ClassType type : entry.getValue()) {
+                    reportError(0, 0, 
+                        "Class '" + className + "' is not defined",
+                        SemanticError.ErrorType.UNDEFINED_CLASS);
+                }
+            }
+        }
     }
     
     @Override
@@ -575,6 +617,19 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
                 return new ClassType(className, (ClassSymbol) classSymbol);
             }
             return new ClassType(className, null); // Forward reference
+        }else if (ctx.classType() != null) {
+            String className = ctx.classType().ID().getText();
+            Symbol classSymbol = globalScope.resolve(className);
+            
+            if (classSymbol instanceof ClassSymbol) {
+                return new ClassType(className, (ClassSymbol) classSymbol);
+            }
+            
+            // Create unresolved type and track it
+            ClassType unresolvedType = new ClassType(className, null);
+            unresolvedTypes.computeIfAbsent(className, k -> new ArrayList<>())
+                           .add(unresolvedType);
+            return unresolvedType;
         }
         
         return ErrorType.getInstance();

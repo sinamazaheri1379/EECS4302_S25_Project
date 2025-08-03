@@ -13,7 +13,7 @@ public class SymbolTable {
     private final SymbolTable parent;
     private final Map<String, Symbol> symbols;
     private final List<SymbolTable> children;
-    
+    private final Map<String, List<MethodSymbol>> methodOverloads; // Add this
     // Context information
     private ClassSymbol enclosingClass;
     private FunctionSymbol enclosingMethod;  // Can be MethodSymbol
@@ -50,6 +50,7 @@ public class SymbolTable {
         this.scopeType = scopeType;
         this.parent = parent;
         this.symbols = new LinkedHashMap<>();  // Preserve insertion order
+        this.methodOverloads = new HashMap<>();
         this.children = new ArrayList<>();
         
         // Inherit context from parent
@@ -105,11 +106,28 @@ public class SymbolTable {
      * Returns true if successful, false if symbol already exists.
      */
     public boolean define(Symbol symbol) {
+    	if (symbol == null || symbol.getName() == null) return false;
+        if (symbol instanceof MethodSymbol) {
+            // Handle method overloading
+            MethodSymbol method = (MethodSymbol) symbol;
+            methodOverloads.computeIfAbsent(method.getName(), k -> new ArrayList<>())
+                          .add(method);
+            return true;
+        }
+        
+        // Regular symbols - no duplicates allowed
         if (symbols.containsKey(symbol.getName())) {
             return false;
         }
         symbols.put(symbol.getName(), symbol);
         return true;
+    }
+    
+    
+    // Add method to find overloaded methods
+    public List<MethodSymbol> getMethodOverloads(String name) {
+        List<MethodSymbol> overloads = methodOverloads.get(name);
+        return overloads != null ? new ArrayList<>(overloads) : new ArrayList<>();
     }
     
     /**
@@ -123,6 +141,8 @@ public class SymbolTable {
      * Resolve a symbol by name, searching up the scope chain.
      */
     public Symbol resolve(String name) {
+        if (name == null) return null; // Add this
+        
         Symbol symbol = symbols.get(name);
         if (symbol != null) {
             return symbol;
