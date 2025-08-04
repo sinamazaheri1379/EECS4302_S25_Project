@@ -365,7 +365,7 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         return null;
     }
     
-    // Class visitors
+ // Class visitors
     @Override
     public Type visitClassDecl(ClassDeclContext ctx) {
         if (ctx == null || ctx.ID().isEmpty()) return null;
@@ -450,7 +450,7 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         if (isStatic) {
             inStaticContext = true;
         }
-        
+       
         visit(ctx.varDecl());
         
         inStaticContext = wasStatic;
@@ -576,12 +576,30 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         return constructor.getType();
     }
     
-    // Function/Method visitors
+ // Function/Method visitors
     @Override
     public Type visitFuncDecl(FuncDeclContext ctx) {
         if (ctx == null || ctx.ID() == null) return null;
         
         String funcName = ctx.ID().getText();
+        
+        // Handle VOID return type
+        Type returnType = null;
+        if (ctx.VOID() != null) {
+            returnType = PrimitiveType.VOID;
+        } else if (ctx.type() != null) {
+            returnType = visit(ctx.type());
+            // Handle array return types
+            for (int i = 0; i < ctx.getChildCount(); i++) {
+                ParseTree child = ctx.getChild(i);
+                if (child instanceof TerminalNode) {
+                    TerminalNode terminal = (TerminalNode) child;
+                    if (terminal.getSymbol().getType() == TypeCheckerParser.LBRACK) {
+                        returnType = new ArrayType(returnType);
+                    }
+                }
+            }
+        }
         
         // Get function symbol
         Symbol symbol = currentScope.resolve(funcName);
@@ -626,12 +644,11 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         visit(ctx.block());
         
         // Check return requirements
-        Type returnType = function.getReturnType();
-        if (!returnType.equals(PrimitiveType.VOID) && !tracker.allPathsReturn()) {
+        if (!function.getReturnType().equals(PrimitiveType.VOID) && !tracker.allPathsReturn()) {
             Token errorToken = ctx.block() != null && ctx.block().getStop() != null ?
                 ctx.block().getStop() : ctx.ID().getSymbol();
             addError(errorToken,
-                "Method '" + funcName + "' must return a value of type " + returnType.getName(),
+                "Method '" + funcName + "' must return a value of type " + function.getReturnType().getName(),
                 SemanticError.ErrorType.MISSING_RETURN);
         }
         
@@ -1155,42 +1172,31 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     public Type visitType(TypeContext ctx) {
         if (ctx == null) return ErrorType.getInstance();
         
-        // Check for VOID first (if it's at this level)
-        if (ctx.VOID() != null) {
-            return PrimitiveType.VOID;
-        }
-        
-        if (ctx.primitiveType() != null) {
-            return visit(ctx.primitiveType());
-        } else if (ctx.classType() != null) {
-            return visit(ctx.classType());
-        }
-        
-        // Check for array brackets
         Type baseType = null;
+        
         if (ctx.primitiveType() != null) {
             baseType = visit(ctx.primitiveType());
         } else if (ctx.classType() != null) {
             baseType = visit(ctx.classType());
         }
         
-        // Count array dimensions if any
-        if (baseType != null) {
-            int dimensions = 0;
-            for (int i = 0; i < ctx.getChildCount(); i++) {
-                if (ctx.getChild(i).getText().equals("[")) {
-                    dimensions++;
-                }
-            }
-            
-            Type result = baseType;
-            for (int i = 0; i < dimensions; i++) {
-                result = new ArrayType(result);
-            }
-            return result;
+        if (baseType == null) {
+            return ErrorType.getInstance();
         }
         
-        return ErrorType.getInstance();
+        // Count array dimensions by looking for LBRACK tokens
+        Type result = baseType;
+        for (int i = 0; i < ctx.getChildCount(); i++) {
+            ParseTree child = ctx.getChild(i);
+            if (child instanceof TerminalNode) {
+                TerminalNode terminal = (TerminalNode) child;
+                if (terminal.getSymbol().getType() == TypeCheckerParser.LBRACK) {
+                    result = new ArrayType(result);
+                }
+            }
+        }
+        
+        return result;
     }
 
     @Override
@@ -1864,32 +1870,44 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     public Type visitForInit(ForInitContext ctx) {
         if (ctx == null) return null;
         
-        // Check what's in ForInitContext
-        if (ctx.localVarDecl() != null) {
-            return visit(ctx.localVarDecl());
+        // Check if it's a variable declaration
+        if (ctx.type() != null) {
+            // Handle variable declaration in for init
+            Type baseType = visit(ctx.type());
+            
+            for (var declarator : ctx.varDeclarator()) {
+                if (declarator == null || declarator.ID() == null) continue;
+                
+                String varName = declarator.ID().getText();
+                Type varType = getArrayType(baseType, declarator);
+                
+                // Create a new variable symbol for the loop scope
+                VariableSymbol var = new VariableSymbol(varName, varType);
+                if (ctx.FINAL() != null) {
+                    var.setFinal(true);
+                }
+                currentScope.define(var);
+                
+                // Process initializer
+                if (declarator.initializer() != null) {
+                    Type initType = visit(declarator.initializer());
+                    if (initType != null && !TypeCompatibility.isAssignmentCompatible(varType, initType)) {
+                        addError(declarator.initializer().getStart(),
+                            "Cannot initialize " + varType.getName() + " with " + initType.getName(),
+                            SemanticError.ErrorType.TYPE_MISMATCH);
+                    }
+                    var.setInitialized(true);
+                    initializedVars.add(var);
+                }
+            }
+            
+            return baseType;
         } else if (ctx.exprList() != null) {
+            // Handle expression list
             return visit(ctx.exprList());
         }
         
         return null;
-    }
-
-
-    @Override
-    public Type visitForUpdate(ForUpdateContext ctx) {
-        if (ctx == null || ctx.exprList() == null) return null;
-        return visit(ctx.exprList());
-    }
-
-    @Override
-    public Type visitExprList(ExprListContext ctx) {
-        if (ctx == null || ctx.expr() == null) return null;
-        
-        Type lastType = null;
-        for (var expr : ctx.expr()) {
-            lastType = visit(expr);
-        }
-        return lastType;
     }
 
     // ============ INITIALIZERS ============
@@ -2144,41 +2162,19 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     public Type visitSwitchLabel(SwitchLabelContext ctx) {
         if (ctx == null) return null;
         
-        // Check if it's a CASE or DEFAULT
-        if (ctx.DEFAULT() != null) {
-            // Default case - nothing to type check
-            return null;
+        // The grammar shows switchLabel can be INT_LITERAL, CHAR_LITERAL, or ID
+        if (ctx.INT_LITERAL() != null) {
+            return PrimitiveType.INT;
         }
-        
-        if (ctx.CASE() != null) {
-            // Case label - find the constant value
-            // It might be an INT_LITERAL, CHAR_LITERAL, or STRING_LITERAL
-            if (ctx.INT_LITERAL() != null) {
-                return PrimitiveType.INT;
-            }
-            if (ctx.CHAR_LITERAL() != null) {
-                return PrimitiveType.CHAR;
-            }
-            if (ctx.STRING_LITERAL() != null) {
-                return PrimitiveType.STRING;
-            }
-            
-            // Or check all children for a literal or identifier
-            for (int i = 0; i < ctx.getChildCount(); i++) {
-                ParseTree child = ctx.getChild(i);
-                if (child instanceof TerminalNode) {
-                    TerminalNode terminal = (TerminalNode) child;
-                    int tokenType = terminal.getSymbol().getType();
-                    
-                    // Map token types to primitive types
-                    if (tokenType == TypeCheckerLexer.INT_LITERAL) {
-                        return PrimitiveType.INT;
-                    } else if (tokenType == TypeCheckerLexer.CHAR_LITERAL) {
-                        return PrimitiveType.CHAR;
-                    } else if (tokenType == TypeCheckerLexer.STRING_LITERAL) {
-                        return PrimitiveType.STRING;
-                    }
-                }
+        if (ctx.CHAR_LITERAL() != null) {
+            return PrimitiveType.CHAR;
+        }
+        if (ctx.ID() != null) {
+            // This could be a constant variable reference
+            String name = ctx.ID().getText();
+            Symbol symbol = currentScope.resolve(name);
+            if (symbol != null) {
+                return symbol.getType();
             }
         }
         
