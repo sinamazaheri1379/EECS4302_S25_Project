@@ -1,0 +1,18 @@
+// test-minimal.tc
+// Minimal test to verify local variable declarations work
+
+int main() {
+    // Test basic local variable declaration
+    int x = 10;
+    
+    // Test using the variable
+    int y = x + 5;
+    
+    // Test final local variable
+    final int z = 20;
+    
+    // This should produce an error when uncommented:
+    // z = 30;  // ERROR: Cannot assign to final variable
+    
+    return 0;
+}

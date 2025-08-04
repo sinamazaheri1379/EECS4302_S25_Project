@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0'>
+<title>Type Checking Report - test/minimal-basic.tc</title>
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        background: #f8f9fa;
+    }
+
+    header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        font-weight: 700;
+    }
+
+    h2 {
+        font-size: 1.8rem;
+        color: #2d3748;
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 3px solid #e2e8f0;
+    }
+
+    .header-info {
+        display: flex;
+        gap: 2rem;
+        font-size: 1rem;
+        opacity: 0.95;
+    }
+
+    .info-item strong {
+        font-weight: 600;
+    }
+
+    section {
+        max-width: 1200px;
+        margin: 2rem auto;
+        padding: 2rem;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+    }
+
+    .success-box {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        padding: 2rem;
+        background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+        border-radius: 8px;
+        color: #0f5132;
+    }
+
+    .success-icon {
+        font-size: 3rem;
+        font-weight: bold;
+    }
+
+    .success-text {
+        font-size: 1.5rem;
+        font-weight: 600;
+    }
+
+    .error-summary {
+        background: #fff5f5;
+        padding: 2rem;
+        border-radius: 8px;
+        border: 1px solid #feb2b2;
+    }
+
+    .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .stat-item {
+        text-align: center;
+        padding: 1rem;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .stat-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #e53e3e;
+    }
+
+    .stat-label {
+        font-size: 0.9rem;
+        color: #718096;
+        margin-top: 0.5rem;
+    }
+
+    .error-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    .error-group {
+        background: #fef5e7;
+        border: 1px solid #fdeaa8;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .error-line-header {
+        background: #fdc665;
+        color: #7c2d12;
+        padding: 0.75rem 1rem;
+        font-weight: 600;
+    }
+
+    .error-item {
+        padding: 1rem;
+        border-bottom: 1px solid #fdeaa8;
+    }
+
+    .error-item:last-child {
+        border-bottom: none;
+    }
+
+    .error-details {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .error-type {
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .error-type-mismatch {
+        background: #fed7d7;
+        color: #9b2c2c;
+    }
+
+    .error-undefined {
+        background: #e9d8fd;
+        color: #553c9a;
+    }
+
+    .error-redefinition {
+        background: #feebc8;
+        color: #92400e;
+    }
+
+    .error-access {
+        background: #c6f6d5;
+        color: #22543d;
+    }
+
+    .error-other {
+        background: #e2e8f0;
+        color: #2d3748;
+    }
+
+    .error-message {
+        color: #2d3748;
+        font-size: 1rem;
+    }
+
+    .error-suggestion {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        background: #f0fff4;
+        border-left: 3px solid #48bb78;
+        color: #22543d;
+        font-size: 0.9rem;
+    }
+
+    .suggestion-icon {
+        font-size: 1.2rem;
+    }
+
+    .code-context {
+        margin-top: 0.75rem;
+        padding: 0.75rem;
+        background: #2d3748;
+        border-radius: 6px;
+        overflow-x: auto;
+    }
+
+    .code-context code {
+        color: #e2e8f0;
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 0.9rem;
+    }
+
+    .code-container {
+        display: flex;
+        background: #2d3748;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .line-numbers {
+        background: #1a202c;
+        color: #718096;
+        padding: 1rem 0.5rem;
+        text-align: right;
+        user-select: none;
+        border-right: 1px solid #4a5568;
+    }
+
+    .line-numbers code {
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+
+    .code-content {
+        flex: 1;
+        padding: 1rem;
+        overflow-x: auto;
+    }
+
+    .code-content code {
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 0.9rem;
+        line-height: 1.5;
+        color: #e2e8f0;
+    }
+
+    .error-line {
+        background: rgba(245, 101, 101, 0.2);
+        display: inline-block;
+        width: 100%;
+    }
+
+    .scope-block {
+        margin-bottom: 1rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .scope-header {
+        background: #4299e1;
+        color: white;
+        padding: 0.75rem 1rem;
+        font-weight: 600;
+    }
+
+    .symbol-table-content {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .symbol-table-content th {
+        background: #edf2f7;
+        padding: 0.75rem;
+        text-align: left;
+        font-weight: 600;
+        color: #2d3748;
+        border-bottom: 2px solid #cbd5e0;
+    }
+
+    .symbol-table-content td {
+        padding: 0.75rem;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .symbol-table-content tr:hover {
+        background: #f7fafc;
+    }
+
+    .scope-block .scope-block {
+        margin: 1rem;
+    }
+
+    footer {
+        text-align: center;
+        padding: 2rem;
+        color: #718096;
+        font-size: 0.9rem;
+    }
+
+    @media (max-width: 768px) {
+        section {
+            margin: 1rem;
+            padding: 1rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+        }
+
+        .header-info {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .stat-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .code-container {
+            font-size: 0.8rem;
+        }
+    }
+</style>
+<script>
+    // Add interactive features
+    document.addEventListener('DOMContentLoaded', function() {
+        // Smooth scrolling for error navigation
+        const errorItems = document.querySelectorAll('.error-item');
+        errorItems.forEach(item => {
+            item.style.cursor = 'pointer';
+            item.addEventListener('click', function() {
+                const lineMatch = this.closest('.error-group').querySelector('.error-line-header').textContent.match(/Line (\d+)/);
+                if (lineMatch) {
+                    const lineNum = lineMatch[1];
+                    const lineElement = document.getElementById('line-' + lineNum);
+                    if (lineElement) {
+                        lineElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        lineElement.style.animation = 'highlight 2s ease-in-out';
+                    }
+                }
+            });
+        });
+    });
+
+    // CSS animation
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes highlight {
+            0% { background-color: rgba(245, 101, 101, 0.2); }
+            50% { background-color: rgba(245, 101, 101, 0.5); }
+            100% { background-color: rgba(245, 101, 101, 0.2); }
+        }
+    `;
+    document.head.appendChild(style);
+</script>
+</head>
+<body>
+<header>
+<h1>Type Checking Report</h1>
+<div class='header-info'>
+<div class='info-item'><strong>File:</strong> test/minimal-basic.tc</div>
+<div class='info-item'><strong>Generated:</strong> 2025-08-04 16:55:47</div>
+</div>
+</header>
+<section class='summary'>
+<h2>Summary</h2>
+<div class='error-summary'>
+<div class='stat-grid'>
+<div class='stat-item'>
+<div class='stat-value'>3</div>
+<div class='stat-label'>Total Errors</div>
+</div>
+<div class='stat-item'>
+<div class='stat-value'>3</div>
+<div class='stat-label'>Internal error</div>
+</div>
+</div>
+</div>
+</section>
+<section class='errors'>
+<h2>Error Details</h2>
+<div class='error-list'>
+<div class='error-group'>
+<div class='error-line-header'>Line 6</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-other'>Internal error</span>
+<span class='error-message'>Variable &#39;x&#39; not found in symbol table</span>
+</div>
+<pre class='code-context'><code>      5 |     // Test basic local variable declaration
+&gt;&gt;    6 |     int x = 10;
+      7 |     
+</code></pre>
+</div>
+</div>
+<div class='error-group'>
+<div class='error-line-header'>Line 9</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-other'>Internal error</span>
+<span class='error-message'>Variable &#39;y&#39; not found in symbol table</span>
+</div>
+<pre class='code-context'><code>      8 |     // Test using the variable
+&gt;&gt;    9 |     int y = x + 5;
+     10 |     
+</code></pre>
+</div>
+</div>
+<div class='error-group'>
+<div class='error-line-header'>Line 12</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-other'>Internal error</span>
+<span class='error-message'>Variable &#39;z&#39; not found in symbol table</span>
+</div>
+<pre class='code-context'><code>     11 |     // Test final local variable
+&gt;&gt;   12 |     final int z = 20;
+     13 |     
+</code></pre>
+</div>
+</div>
+</div>
+</section>
+<section class='source-code'>
+<h2>Source Code</h2>
+<div class='code-container'>
+<pre class='line-numbers'><code>   1
+   2
+   3
+   4
+   5
+   6
+   7
+   8
+   9
+  10
+  11
+  12
+  13
+  14
+  15
+  16
+  17
+  18
+</code></pre>
+<pre class='code-content'><code><span id='line-1'>// test-minimal.tc</span>
+<span id='line-2'>// Minimal test to verify local variable declarations work</span>
+<span id='line-3'></span>
+<span id='line-4'>int main() {</span>
+<span id='line-5'>    // Test basic local variable declaration</span>
+<span class='error-line' id='line-6'>    int x = 10;</span>
+<span id='line-7'>    </span>
+<span id='line-8'>    // Test using the variable</span>
+<span class='error-line' id='line-9'>    int y = x + 5;</span>
+<span id='line-10'>    </span>
+<span id='line-11'>    // Test final local variable</span>
+<span class='error-line' id='line-12'>    final int z = 20;</span>
+<span id='line-13'>    </span>
+<span id='line-14'>    // This should produce an error when uncommented:</span>
+<span id='line-15'>    // z = 30;  // ERROR: Cannot assign to final variable</span>
+<span id='line-16'>    </span>
+<span id='line-17'>    return 0;</span>
+<span id='line-18'>}</span>
+</code></pre>
+</div>
+</section>
+<section class='symbol-table'>
+<h2>Symbol Table</h2>
+<div class='table-container'>
+<div class='scope-block'>
+  <div class='scope-header'>Scope: global</div>
+  <table class='symbol-table-content'>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Kind</th>
+        <th>Line</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>print</td>
+        <td>(string) -&gt; void</td>
+        <td>Function</td>
+        <td>0</td>
+      </tr>
+      <tr>
+        <td>println</td>
+        <td>(string) -&gt; void</td>
+        <td>Function</td>
+        <td>0</td>
+      </tr>
+      <tr>
+        <td>main</td>
+        <td>() -&gt; int</td>
+        <td>Function</td>
+        <td>4</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class='scope-block'>
+    <div class='scope-header'>Scope: main_method</div>
+    <table class='symbol-table-content'>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Kind</th>
+          <th>Line</th>
+        </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: block_0</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>x</td>
+            <td>int</td>
+            <td>Variable</td>
+            <td>6</td>
+          </tr>
+          <tr>
+            <td>y</td>
+            <td>int</td>
+            <td>Variable</td>
+            <td>9</td>
+          </tr>
+          <tr>
+            <td>z</td>
+            <td>int</td>
+            <td>Variable</td>
+            <td>12</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class='scope-block'>
+    <div class='scope-header'>Scope: main_method</div>
+    <table class='symbol-table-content'>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Kind</th>
+          <th>Line</th>
+        </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: block_0</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</div>
+</section>
+<footer>
+<p>Generated by EECS4302 Type Checker Compiler</p>
+</footer>
+</body>
+</html>

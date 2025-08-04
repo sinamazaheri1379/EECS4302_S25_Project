@@ -1,0 +1,55 @@
+// test-basic-types.tc
+// Tests basic type declarations, assignments, and type mismatches
+
+// Global variable declarations
+int globalInt = 42;
+float globalFloat = 3.14;
+string globalString = "Hello, World!";
+boolean globalBool = true;
+char globalChar = 'A';
+
+// Test final variables
+final int CONSTANT = 100;
+final string APP_NAME = "TypeChecker";
+
+// Test static variables
+static int staticCounter = 0;
+static final float PI = 3.14159;
+
+int main() {
+    // Local variable declarations
+    int localInt = 10;
+    float localFloat = 2.5;
+    string localString = "Local";
+    boolean localBool = false;
+    char localChar = 'B';
+    
+    // Test type compatibility
+    int intResult = globalInt + localInt;  // OK
+    float floatResult = globalFloat * localFloat;  // OK
+    string stringResult = globalString + localString;  // OK
+    
+    // Test type promotion
+    float promoted = localInt + globalFloat;  // int promoted to float - OK
+    
+    // Test type errors (uncomment to test error detection)
+    int typeError1 = localInt + localString;  // ERROR: Cannot add int and string
+    boolean typeError2 = localInt;  // ERROR: Cannot assign int to boolean
+    localInt = localString;  // ERROR: Cannot assign string to int
+    
+    // Test final variable assignment (uncomment to test)
+    CONSTANT = 200;  // ERROR: Cannot assign to final variable
+    
+    // Test undefined variable (uncomment to test)
+    int undefined = unknownVar + 10;  // ERROR: Undefined variable 'unknownVar'
+    
+    // Test boolean expressions
+    boolean comparison = localInt > 5;  // OK
+    boolean logical = localBool && (localInt == 10);  // OK
+    
+    // Test character operations
+    char nextChar = 'C';
+    boolean charCompare = localChar < nextChar;  // OK
+    
+    return 0;
+}

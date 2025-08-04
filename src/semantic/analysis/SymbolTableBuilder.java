@@ -628,4 +628,31 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         
         return ErrorType.getInstance();
     }
+    
+    @Override
+    public Void visitLocalVarDeclStmt(LocalVarDeclStmtContext ctx) {
+        // Just visit the local variable declaration
+    	System.out.println("Visiting local var decl stmt");
+        if (ctx.localVarDecl() != null) {
+            visit(ctx.localVarDecl());
+        }
+        return null;
+    }
+
+    @Override
+    public Void visitLocalVarDecl(LocalVarDeclContext ctx) {
+        // Handle the optional FINAL modifier and delegate to varDecl
+    	System.out.println("Visiting local var decl");
+        if (ctx.varDecl() != null) {
+            visit(ctx.varDecl());
+        }
+        return null;
+    }
+
+    @Override
+    public Void visitStatement(StatementContext ctx) {
+        // Visit the specific statement type
+    	System.out.println("Visiting stmt");
+        return visitChildren(ctx);
+    }
 }
