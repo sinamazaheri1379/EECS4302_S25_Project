@@ -21,14 +21,14 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
     private ClassSymbol currentClass;
     private List<SemanticError> errors;
     private Set<String> imports;
-    private List<ClassType> unresolvedTypes;
+    private Map<String, List<ClassType>> unresolvedTypes;
     
     public SymbolTableBuilder() {
         this.globalScope = SymbolTable.createGlobalScope();
         this.currentScope = globalScope;
         this.errors = new ArrayList<>();
         this.imports = new HashSet<>();
-        
+        this.unresolvedTypes = new HashMap<>();  // Change this line
         // Define built-in functions
         defineBuiltInFunctions();
     }
