@@ -1,0 +1,367 @@
+// test-student-system.tc
+// A comprehensive student management system demonstrating practical usage
+
+// Base person class
+class Person {
+    protected string name;
+    protected int age;
+    protected string id;
+    
+    public Person(string name, int age, string id) {
+        this.name = name;
+        this.age = age;
+        this.id = id;
+    }
+    
+    public string getName() { return name; }
+    public int getAge() { return age; }
+    public string getId() { return id; }
+    
+    public string toString() {
+        return "Person[name=" + name + ", age=" + age + ", id=" + id + "]";
+    }
+}
+
+// Student class
+class Student extends Person {
+    private float gpa;
+    private string major;
+    private int year;
+    private Course[] enrolledCourses;
+    private int courseCount;
+    private static int totalStudents = 0;
+    
+    public Student(string name, int age, string id, string major, int year) {
+        super(name, age, id);
+        this.major = major;
+        this.year = year;
+        this.gpa = 0.0;
+        this.enrolledCourses = new Course[10];  // Max 10 courses
+        this.courseCount = 0;
+        totalStudents++;
+    }
+    
+    public boolean enrollInCourse(Course course) {
+        if (courseCount < 10 && course != null) {
+            enrolledCourses[courseCount] = course;
+            courseCount++;
+            return true;
+        }
+        return false;
+    }
+    
+    public void calculateGPA() {
+        if (courseCount == 0) {
+            gpa = 0.0;
+            return;
+        }
+        
+        float totalPoints = 0.0;
+        int totalCredits = 0;
+        
+        for (int i = 0; i < courseCount; i++) {
+            Course c = enrolledCourses[i];
+            float grade = c.getGrade(this.id);
+            if (grade >= 0.0) {  // Valid grade
+                totalPoints = totalPoints + (grade * c.getCredits());
+                totalCredits = totalCredits + c.getCredits();
+            }
+        }
+        
+        if (totalCredits > 0) {
+            gpa = totalPoints / totalCredits;
+        }
+    }
+    
+    public float getGPA() { return gpa; }
+    public string getMajor() { return major; }
+    public int getYear() { return year; }
+    public static int getTotalStudents() { return totalStudents; }
+    
+    public string toString() {
+        return "Student[name=" + name + ", id=" + id + ", major=" + major + 
+               ", year=" + year + ", gpa=" + gpa + "]";
+    }
+}
+
+// Professor class
+class Professor extends Person {
+    private string department;
+    private Course[] teachingCourses;
+    private int courseCount;
+    private static int totalProfessors = 0;
+    
+    public Professor(string name, int age, string id, string department) {
+        super(name, age, id);
+        this.department = department;
+        this.teachingCourses = new Course[5];  // Max 5 courses
+        this.courseCount = 0;
+        totalProfessors++;
+    }
+    
+    public boolean assignToCourse(Course course) {
+        if (courseCount < 5 && course != null) {
+            teachingCourses[courseCount] = course;
+            course.setProfessor(this);
+            courseCount++;
+            return true;
+        }
+        return false;
+    }
+    
+    public string getDepartment() { return department; }
+    public static int getTotalProfessors() { return totalProfessors; }
+}
+
+// Course class
+class Course {
+    private string courseId;
+    private string courseName;
+    private int credits;
+    private Professor professor;
+    private Student[] enrolledStudents;
+    private float[] grades;
+    private int studentCount;
+    private static final int MAX_STUDENTS = 30;
+    
+    public Course(string id, string name, int credits) {
+        this.courseId = id;
+        this.courseName = name;
+        this.credits = credits;
+        this.professor = null;
+        this.enrolledStudents = new Student[MAX_STUDENTS];
+        this.grades = new float[MAX_STUDENTS];
+        this.studentCount = 0;
+        
+        // Initialize grades to -1 (not graded)
+        for (int i = 0; i < MAX_STUDENTS; i++) {
+            grades[i] = -1.0;
+        }
+    }
+    
+    public void setProfessor(Professor prof) {
+        this.professor = prof;
+    }
+    
+    public boolean enrollStudent(Student student) {
+        if (studentCount < MAX_STUDENTS && student != null) {
+            enrolledStudents[studentCount] = student;
+            studentCount++;
+            return true;
+        }
+        return false;
+    }
+    
+    public boolean setGrade(string studentId, float grade) {
+        for (int i = 0; i < studentCount; i++) {
+            if (enrolledStudents[i].getId() == studentId) {
+                if (grade >= 0.0 && grade <= 4.0) {
+                    grades[i] = grade;
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    
+    public float getGrade(string studentId) {
+        for (int i = 0; i < studentCount; i++) {
+            if (enrolledStudents[i].getId() == studentId) {
+                return grades[i];
+            }
+        }
+        return -1.0;  // Not found
+    }
+    
+    public string getCourseId() { return courseId; }
+    public string getCourseName() { return courseName; }
+    public int getCredits() { return credits; }
+    public int getStudentCount() { return studentCount; }
+    
+    public float calculateAverageGrade() {
+        float sum = 0.0;
+        int count = 0;
+        
+        for (int i = 0; i < studentCount; i++) {
+            if (grades[i] >= 0.0) {
+                sum = sum + grades[i];
+                count++;
+            }
+        }
+        
+        if (count > 0) {
+            return sum / count;
+        }
+        return 0.0;
+    }
+}
+
+// University class (main container)
+class University {
+    private string name;
+    private Student[] students;
+    private Professor[] professors;
+    private Course[] courses;
+    private int studentCount;
+    private int professorCount;
+    private int courseCount;
+    
+    public University(string name) {
+        this.name = name;
+        this.students = new Student[1000];
+        this.professors = new Professor[100];
+        this.courses = new Course[200];
+        this.studentCount = 0;
+        this.professorCount = 0;
+        this.courseCount = 0;
+    }
+    
+    public boolean addStudent(Student student) {
+        if (studentCount < 1000 && student != null) {
+            students[studentCount] = student;
+            studentCount++;
+            return true;
+        }
+        return false;
+    }
+    
+    public boolean addProfessor(Professor professor) {
+        if (professorCount < 100 && professor != null) {
+            professors[professorCount] = professor;
+            professorCount++;
+            return true;
+        }
+        return false;
+    }
+    
+    public boolean addCourse(Course course) {
+        if (courseCount < 200 && course != null) {
+            courses[courseCount] = course;
+            courseCount++;
+            return true;
+        }
+        return false;
+    }
+    
+    public Student findStudentById(string id) {
+        for (int i = 0; i < studentCount; i++) {
+            if (students[i].getId() == id) {
+                return students[i];
+            }
+        }
+        return null;
+    }
+    
+    public Course findCourseById(string id) {
+        for (int i = 0; i < courseCount; i++) {
+            if (courses[i].getCourseId() == id) {
+                return courses[i];
+            }
+        }
+        return null;
+    }
+    
+    public void generateReport() {
+        print("=== University Report: " + name + " ===");
+        print("Total Students: " + studentCount);
+        print("Total Professors: " + professorCount);
+        print("Total Courses: " + courseCount);
+        
+        // Top students (GPA > 3.5)
+        print("\n--- Honor Roll Students ---");
+        for (int i = 0; i < studentCount; i++) {
+            if (students[i].getGPA() > 3.5) {
+                print(students[i].toString());
+            }
+        }
+        
+        // Course statistics
+        print("\n--- Course Statistics ---");
+        for (int i = 0; i < courseCount; i++) {
+            Course c = courses[i];
+            float avg = c.calculateAverageGrade();
+            print(c.getCourseName() + " - Students: " + c.getStudentCount() + 
+                  ", Avg Grade: " + avg);
+        }
+    }
+}
+
+// Main program demonstrating the system
+int main() {
+    // Create university
+    University techU = new University("Tech University");
+    
+    // Create professors
+    Professor prof1 = new Professor("Dr. Smith", 45, "P001", "Computer Science");
+    Professor prof2 = new Professor("Dr. Johnson", 50, "P002", "Mathematics");
+    
+    techU.addProfessor(prof1);
+    techU.addProfessor(prof2);
+    
+    // Create courses
+    Course cs101 = new Course("CS101", "Introduction to Programming", 4);
+    Course cs201 = new Course("CS201", "Data Structures", 3);
+    Course math101 = new Course("MATH101", "Calculus I", 4);
+    
+    techU.addCourse(cs101);
+    techU.addCourse(cs201);
+    techU.addCourse(math101);
+    
+    // Assign professors to courses
+    prof1.assignToCourse(cs101);
+    prof1.assignToCourse(cs201);
+    prof2.assignToCourse(math101);
+    
+    // Create students
+    Student s1 = new Student("Alice Brown", 20, "S001", "Computer Science", 2);
+    Student s2 = new Student("Bob Wilson", 19, "S002", "Computer Science", 1);
+    Student s3 = new Student("Carol Davis", 21, "S003", "Mathematics", 3);
+    
+    techU.addStudent(s1);
+    techU.addStudent(s2);
+    techU.addStudent(s3);
+    
+    // Enroll students in courses
+    s1.enrollInCourse(cs101);
+    s1.enrollInCourse(cs201);
+    s1.enrollInCourse(math101);
+    cs101.enrollStudent(s1);
+    cs201.enrollStudent(s1);
+    math101.enrollStudent(s1);
+    
+    s2.enrollInCourse(cs101);
+    s2.enrollInCourse(math101);
+    cs101.enrollStudent(s2);
+    math101.enrollStudent(s2);
+    
+    s3.enrollInCourse(math101);
+    math101.enrollStudent(s3);
+    
+    // Set grades
+    cs101.setGrade("S001", 3.7);   // A-
+    cs201.setGrade("S001", 4.0);   // A
+    math101.setGrade("S001", 3.3); // B+
+    
+    cs101.setGrade("S002", 3.0);   // B
+    math101.setGrade("S002", 3.7); // A-
+    
+    math101.setGrade("S003", 4.0); // A
+    
+    // Calculate GPAs
+    s1.calculateGPA();
+    s2.calculateGPA();
+    s3.calculateGPA();
+    
+    // Generate report
+    techU.generateReport();
+    
+    // Test some edge cases
+    Student nullStudent = null;
+    // techU.addStudent(nullStudent);  // Should handle gracefully
+    
+    // Test static counters
+    print("\nTotal students created: " + Student.getTotalStudents());
+    print("Total professors created: " + Professor.getTotalProfessors());
+    
+    return 0;
+}

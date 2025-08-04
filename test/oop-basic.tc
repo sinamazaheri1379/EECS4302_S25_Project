@@ -1,0 +1,169 @@
+// test-oop-basic.tc
+// Tests basic object-oriented features: classes, objects, methods, fields
+
+// Basic class with fields and methods
+class Person {
+    private string name;
+    private int age;
+    protected string address;
+    public static int population = 0;
+    
+    // Constructor
+    public Person(string n, int a) {
+        this.name = n;
+        this.age = a;
+        this.address = "Unknown";
+        population = population + 1;
+    }
+    
+    // Overloaded constructor
+    public Person(string n, int a, string addr) {
+        this.name = n;
+        this.age = a;
+        this.address = addr;
+        population = population + 1;
+    }
+    
+    // Getter methods
+    public string getName() {
+        return name;
+    }
+    
+    public int getAge() {
+        return age;
+    }
+    
+    // Setter methods
+    public void setName(string n) {
+        this.name = n;
+    }
+    
+    public void setAge(int a) {
+        if (a >= 0) {
+            this.age = a;
+        }
+    }
+    
+    // Method with logic
+    public boolean isAdult() {
+        return age >= 18;
+    }
+    
+    // Static method
+    public static int getPopulation() {
+        return population;
+    }
+    
+    // Method that uses this
+    public void haveBirthday() {
+        this.age = this.age + 1;
+    }
+    
+    // toString equivalent
+    public string toString() {
+        return "Person[name=" + name + ", age=" + age + "]";
+    }
+}
+
+// Class with final fields and methods
+class ImmutablePoint {
+    private final float x;
+    private final float y;
+    
+    public ImmutablePoint(float x, float y) {
+        this.x = x;
+        this.y = y;
+    }
+    
+    public float getX() {
+        return x;
+    }
+    
+    public float getY() {
+        return y;
+    }
+    
+    // Test final field assignment (should generate error)
+    public void setX(float newX) {
+        // this.x = newX;  // ERROR: Cannot assign to final field
+    }
+    
+    public float distanceFromOrigin() {
+        return x * x + y * y;  // Simplified distance (squared)
+    }
+}
+
+// Test class without constructor
+class DefaultConstructor {
+    public int value;
+    
+    public void setValue(int v) {
+        value = v;
+    }
+}
+
+void testBasicOOP() {
+    // Object creation
+    Person p1 = new Person("Alice", 25);
+    Person p2 = new Person("Bob", 17, "123 Main St");
+    
+    // Method calls
+    string name1 = p1.getName();
+    int age1 = p1.getAge();
+    boolean isAdult = p2.isAdult();  // false
+    
+    // Field access (should generate errors for private fields)
+    // string privateName = p1.name;  // ERROR: Cannot access private field
+    // p1.age = 30;  // ERROR: Cannot access private field
+    
+    // Static field/method access
+    int pop = Person.population;  // OK - public static
+    int pop2 = Person.getPopulation();  // OK
+    
+    // Test null object
+    Person nullPerson = null;
+    // string nullName = nullPerson.getName();  // ERROR: Null pointer dereference
+    
+    // Test this usage
+    p1.haveBirthday();  // age becomes 26
+    
+    // Test object assignment
+    Person p3 = p1;  // Reference assignment
+    p3.setName("Alice Smith");  // Affects p1 too
+    
+    // Test immutable class
+    ImmutablePoint point = new ImmutablePoint(3.0, 4.0);
+    float x = point.getX();
+    float dist = point.distanceFromOrigin();
+    
+    // Test default constructor
+    DefaultConstructor dc = new DefaultConstructor();
+    dc.setValue(42);
+}
+
+// Test invalid class usage
+void testClassErrors() {
+    // Test undefined class (should generate error)
+    // UndefinedClass obj = new UndefinedClass();  // ERROR: Undefined class
+    
+    // Test wrong constructor arguments
+    // Person p = new Person();  // ERROR: No matching constructor
+    // Person p2 = new Person("Alice");  // ERROR: Wrong number of arguments
+    // Person p3 = new Person(25, "Alice");  // ERROR: Wrong argument types
+    
+    // Test accessing static through instance (implementation dependent)
+    Person p = new Person("Test", 20);
+    // int pop = p.population;  // WARNING: Accessing static field through instance
+}
+
+int main() {
+    testBasicOOP();
+    testClassErrors();
+    
+    // Test object creation and method chaining
+    Person p = new Person("Charlie", 30);
+    p.setAge(31);
+    string info = p.toString();
+    
+    return 0;
+}

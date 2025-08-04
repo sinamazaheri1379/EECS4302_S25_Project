@@ -1,0 +1,107 @@
+// test-arrays.tc
+// Tests array declarations, operations, and type checking
+
+// Global array declarations
+int[] globalIntArray = {1, 2, 3, 4, 5};
+string[] globalStringArray = {"apple", "banana", "cherry"};
+float[] globalFloatArray = new float[10];
+
+// Multi-dimensional arrays
+int[][] matrix = new int[3][3];
+string[][] stringMatrix = {{"a", "b"}, {"c", "d"}};
+
+// Function that returns an array
+int[] createArray(int size) {
+    int[] result = new int[size];
+    for (int i = 0; i < size; i++) {
+        result[i] = i * i;
+    }
+    return result;
+}
+
+// Function with array parameter
+int sumArray(int[] arr) {
+    int sum = 0;
+    for (int val : arr) {
+        sum = sum + val;
+    }
+    return sum;
+}
+
+void testArrayOperations() {
+    // Local array declarations
+    int[] localArray = new int[5];
+    boolean[] flags = {true, false, true, true};
+    char[] letters = {'a', 'b', 'c', 'd', 'e'};
+    
+    // Array element access
+    localArray[0] = 10;
+    localArray[1] = 20;
+    int firstElement = localArray[0];
+    
+    // Test array index types
+    int index = 2;
+    localArray[index] = 30;  // OK
+    
+    // Test invalid array index type (should generate error)
+    // string strIndex = "2";
+    // localArray[strIndex] = 40;  // ERROR: Array index must be int
+    
+    // Test array bounds (runtime check, but could warn)
+    // localArray[10] = 50;  // WARNING: Possible array index out of bounds
+    
+    // Test array type mismatch
+    // int[] intArr = {"one", "two", "three"};  // ERROR: Cannot initialize int[] with string values
+    
+    // Test array assignment compatibility
+    int[] arr1 = {1, 2, 3};
+    int[] arr2 = arr1;  // OK - reference assignment
+    arr2[0] = 100;  // Modifies both arr1 and arr2
+    
+    // Test multi-dimensional array access
+    matrix[0][0] = 1;
+    matrix[1][1] = 5;
+    matrix[2][2] = 9;
+    
+    // Test passing arrays to functions
+    int[] squares = createArray(5);
+    int total = sumArray(squares);
+    
+    // Test array length property (if supported)
+    // int arrayLength = localArray.length;  // Depends on implementation
+    
+    // Test null array handling
+    int[] nullArray = null;
+    // nullArray[0] = 10;  // ERROR: Null pointer dereference
+    
+    // Test array element type compatibility
+    float[] floatArr = new float[3];
+    floatArr[0] = 1;      // int to float promotion - OK
+    floatArr[1] = 2.5;    // OK
+    // floatArr[2] = "3.0";  // ERROR: Cannot assign string to float
+}
+
+// Function to test 2D array operations
+void matrixOperations() {
+    int[][] matrixA = {{1, 2}, {3, 4}};
+    int[][] matrixB = {{5, 6}, {7, 8}};
+    int[][] result = new int[2][2];
+    
+    // Matrix addition
+    for (int i = 0; i < 2; i++) {
+        for (int j = 0; j < 2; j++) {
+            result[i][j] = matrixA[i][j] + matrixB[i][j];
+        }
+    }
+}
+
+int main() {
+    testArrayOperations();
+    matrixOperations();
+    
+    // Test array initialization
+    int[] primes = {2, 3, 5, 7, 11, 13};
+    int sum = sumArray(primes);
+    
+    return 0;
+}

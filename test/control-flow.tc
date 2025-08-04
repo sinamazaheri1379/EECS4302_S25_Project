@@ -1,0 +1,122 @@
+// test-control-flow.tc
+// Tests various control flow structures and their type checking
+
+int fibonacci(int n) {
+    if (n <= 1) {
+        return n;
+    } else {
+        return fibonacci(n - 1) + fibonacci(n - 2);
+    }
+}
+
+void testControlFlow() {
+    int x = 10;
+    string result = "";
+    
+    // Test if-else with boolean condition
+    if (x > 5) {
+        result = "Greater than 5";
+    } else {
+        result = "Less than or equal to 5";
+    }
+    
+    // Test if with non-boolean condition (should generate error)
+    // if (x) {  // ERROR: Condition must be boolean
+    //     result = "Invalid";
+    // }
+    
+    // Test nested if-else
+    if (x > 0) {
+        if (x % 2 == 0) {
+            result = "Positive even";
+        } else {
+            result = "Positive odd";
+        }
+    } else if (x < 0) {
+        result = "Negative";
+    } else {
+        result = "Zero";
+    }
+    
+    // Test while loop
+    int counter = 0;
+    while (counter < 5) {
+        counter = counter + 1;
+    }
+    
+    // Test while with non-boolean condition (should generate error)
+    // while (counter) {  // ERROR: Condition must be boolean
+    //     counter--;
+    // }
+    
+    // Test for loop
+    for (int i = 0; i < 10; i++) {
+        x = x + i;
+    }
+    
+    // Test for-each loop
+    int[] numbers = {1, 2, 3, 4, 5};
+    int sum = 0;
+    for (int num : numbers) {
+        sum = sum + num;
+    }
+    
+    // Test do-while loop
+    int factorial = 1;
+    int n = 5;
+    do {
+        factorial = factorial * n;
+        n = n - 1;
+    } while (n > 0);
+    
+    // Test switch statement
+    char grade = 'A';
+    string gradeText = "";
+    switch (grade) {
+        case 'A':
+            gradeText = "Excellent";
+            break;
+        case 'B':
+            gradeText = "Good";
+            break;
+        case 'C':
+            gradeText = "Average";
+            break;
+        default:
+            gradeText = "Unknown";
+    }
+    
+    // Test break and continue
+    for (int j = 0; j < 10; j++) {
+        if (j == 5) {
+            continue;
+        }
+        if (j == 8) {
+            break;
+        }
+        sum = sum + j;
+    }
+    
+    // Test invalid break/continue (outside loop - should generate error)
+    // break;  // ERROR: break outside of loop/switch
+    // continue;  // ERROR: continue outside of loop
+}
+
+// Test missing return statement
+int missingReturn(int x) {
+    if (x > 0) {
+        return x;
+    }
+    // ERROR: Missing return statement in else branch
+}
+
+// Test return type mismatch
+int wrongReturnType() {
+    return "string";  // ERROR: Cannot return string from int function
+}
+
+int main() {
+    testControlFlow();
+    int fib = fibonacci(10);
+    return 0;
+}

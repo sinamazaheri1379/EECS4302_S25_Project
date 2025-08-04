@@ -1,0 +1,411 @@
+// test-algorithms.tc
+// Implementation of common algorithms and data structures
+
+// Sorting algorithms
+class SortingAlgorithms {
+    
+    // Bubble sort
+    public void bubbleSort(int[] arr) {
+        int n = arr.length;  // Assuming length property exists
+        
+        for (int i = 0; i < n - 1; i++) {
+            for (int j = 0; j < n - i - 1; j++) {
+                if (arr[j] > arr[j + 1]) {
+                    // Swap elements
+                    int temp = arr[j];
+                    arr[j] = arr[j + 1];
+                    arr[j + 1] = temp;
+                }
+            }
+        }
+    }
+    
+    // Selection sort
+    public void selectionSort(int[] arr) {
+        int n = arr.length;
+        
+        for (int i = 0; i < n - 1; i++) {
+            int minIdx = i;
+            
+            for (int j = i + 1; j < n; j++) {
+                if (arr[j] < arr[minIdx]) {
+                    minIdx = j;
+                }
+            }
+            
+            // Swap minimum with current position
+            int temp = arr[minIdx];
+            arr[minIdx] = arr[i];
+            arr[i] = temp;
+        }
+    }
+    
+    // Quick sort
+    public void quickSort(int[] arr, int low, int high) {
+        if (low < high) {
+            int pi = partition(arr, low, high);
+            quickSort(arr, low, pi - 1);
+            quickSort(arr, pi + 1, high);
+        }
+    }
+    
+    private int partition(int[] arr, int low, int high) {
+        int pivot = arr[high];
+        int i = low - 1;
+        
+        for (int j = low; j < high; j++) {
+            if (arr[j] < pivot) {
+                i++;
+                int temp = arr[i];
+                arr[i] = arr[j];
+                arr[j] = temp;
+            }
+        }
+        
+        int temp = arr[i + 1];
+        arr[i + 1] = arr[high];
+        arr[high] = temp;
+        
+        return i + 1;
+    }
+}
+
+// Search algorithms
+class SearchAlgorithms {
+    
+    // Linear search
+    public int linearSearch(int[] arr, int target) {
+        for (int i = 0; i < arr.length; i++) {
+            if (arr[i] == target) {
+                return i;
+            }
+        }
+        return -1;  // Not found
+    }
+    
+    // Binary search (requires sorted array)
+    public int binarySearch(int[] arr, int target) {
+        int left = 0;
+        int right = arr.length - 1;
+        
+        while (left <= right) {
+            int mid = left + (right - left) / 2;
+            
+            if (arr[mid] == target) {
+                return mid;
+            }
+            
+            if (arr[mid] < target) {
+                left = mid + 1;
+            } else {
+                right = mid - 1;
+            }
+        }
+        
+        return -1;  // Not found
+    }
+    
+    // Binary search recursive
+    public int binarySearchRecursive(int[] arr, int target, int left, int right) {
+        if (left > right) {
+            return -1;
+        }
+        
+        int mid = left + (right - left) / 2;
+        
+        if (arr[mid] == target) {
+            return mid;
+        }
+        
+        if (arr[mid] < target) {
+            return binarySearchRecursive(arr, target, mid + 1, right);
+        } else {
+            return binarySearchRecursive(arr, target, left, mid - 1);
+        }
+    }
+}
+
+// Simple linked list implementation
+class Node {
+    public int data;
+    public Node next;
+    
+    public Node(int data) {
+        this.data = data;
+        this.next = null;
+    }
+}
+
+class LinkedList {
+    private Node head;
+    private int size;
+    
+    public LinkedList() {
+        this.head = null;
+        this.size = 0;
+    }
+    
+    // Add to front
+    public void addFirst(int data) {
+        Node newNode = new Node(data);
+        newNode.next = head;
+        head = newNode;
+        size++;
+    }
+    
+    // Add to end
+    public void addLast(int data) {
+        Node newNode = new Node(data);
+        
+        if (head == null) {
+            head = newNode;
+        } else {
+            Node current = head;
+            while (current.next != null) {
+                current = current.next;
+            }
+            current.next = newNode;
+        }
+        size++;
+    }
+    
+    // Remove first
+    public int removeFirst() {
+        if (head == null) {
+            print("Error: List is empty");
+            return -1;
+        }
+        
+        int data = head.data;
+        head = head.next;
+        size--;
+        return data;
+    }
+    
+    // Search for value
+    public boolean contains(int value) {
+        Node current = head;
+        
+        while (current != null) {
+            if (current.data == value) {
+                return true;
+            }
+            current = current.next;
+        }
+        
+        return false;
+    }
+    
+    // Get size
+    public int getSize() {
+        return size;
+    }
+    
+    // Print list
+    public void printList() {
+        Node current = head;
+        print("List: ");
+        
+        while (current != null) {
+            print(current.data + " ");
+            current = current.next;
+        }
+        print("\n");
+    }
+}
+
+// Stack implementation using array
+class Stack {
+    private int[] elements;
+    private int top;
+    private int capacity;
+    
+    public Stack(int capacity) {
+        this.capacity = capacity;
+        this.elements = new int[capacity];
+        this.top = -1;
+    }
+    
+    public boolean push(int value) {
+        if (top >= capacity - 1) {
+            print("Stack overflow");
+            return false;
+        }
+        
+        top++;
+        elements[top] = value;
+        return true;
+    }
+    
+    public int pop() {
+        if (top < 0) {
+            print("Stack underflow");
+            return -1;
+        }
+        
+        int value = elements[top];
+        top--;
+        return value;
+    }
+    
+    public int peek() {
+        if (top < 0) {
+            print("Stack is empty");
+            return -1;
+        }
+        
+        return elements[top];
+    }
+    
+    public boolean isEmpty() {
+        return top < 0;
+    }
+    
+    public boolean isFull() {
+        return top >= capacity - 1;
+    }
+}
+
+// Mathematical algorithms
+class MathAlgorithms {
+    
+    // Factorial (iterative)
+    public int factorial(int n) {
+        if (n < 0) {
+            return -1;  // Error
+        }
+        
+        int result = 1;
+        for (int i = 2; i <= n; i++) {
+            result = result * i;
+        }
+        return result;
+    }
+    
+    // Factorial (recursive)
+    public int factorialRecursive(int n) {
+        if (n < 0) {
+            return -1;  // Error
+        }
+        if (n <= 1) {
+            return 1;
+        }
+        return n * factorialRecursive(n - 1);
+    }
+    
+    // Fibonacci (iterative)
+    public int fibonacci(int n) {
+        if (n <= 1) {
+            return n;
+        }
+        
+        int prev = 0;
+        int curr = 1;
+        
+        for (int i = 2; i <= n; i++) {
+            int temp = prev + curr;
+            prev = curr;
+            curr = temp;
+        }
+        
+        return curr;
+    }
+    
+    // Greatest Common Divisor (Euclidean algorithm)
+    public int gcd(int a, int b) {
+        while (b != 0) {
+            int temp = b;
+            b = a % b;
+            a = temp;
+        }
+        return a;
+    }
+    
+    // Check if prime
+    public boolean isPrime(int n) {
+        if (n <= 1) {
+            return false;
+        }
+        if (n <= 3) {
+            return true;
+        }
+        if (n % 2 == 0 || n % 3 == 0) {
+            return false;
+        }
+        
+        int i = 5;
+        while (i * i <= n) {
+            if (n % i == 0 || n % (i + 2) == 0) {
+                return false;
+            }
+            i = i + 6;
+        }
+        
+        return true;
+    }
+}
+
+// Test the algorithms
+int main() {
+    // Test sorting
+    SortingAlgorithms sorter = new SortingAlgorithms();
+    int[] arr1 = {64, 34, 25, 12, 22, 11, 90};
+    
+    print("Original array: ");
+    for (int i = 0; i < 7; i++) {
+        print(arr1[i] + " ");
+    }
+    print("\n");
+    
+    sorter.bubbleSort(arr1);
+    
+    print("Sorted array: ");
+    for (int i = 0; i < 7; i++) {
+        print(arr1[i] + " ");
+    }
+    print("\n");
+    
+    // Test searching
+    SearchAlgorithms searcher = new SearchAlgorithms();
+    int[] sortedArr = {2, 3, 4, 10, 40};
+    
+    int result = searcher.binarySearch(sortedArr, 10);
+    if (result != -1) {
+        print("Element found at index: " + result);
+    } else {
+        print("Element not found");
+    }
+    
+    // Test linked list
+    LinkedList list = new LinkedList();
+    list.addFirst(10);
+    list.addFirst(20);
+    list.addLast(30);
+    list.addLast(40);
+    
+    list.printList();
+    
+    boolean found = list.contains(30);
+    print("Contains 30: " + found);
+    
+    // Test stack
+    Stack stack = new Stack(5);
+    stack.push(10);
+    stack.push(20);
+    stack.push(30);
+    
+    print("Top element: " + stack.peek());
+    print("Popped: " + stack.pop());
+    print("Is empty: " + stack.isEmpty());
+    
+    // Test mathematical algorithms
+    MathAlgorithms math = new MathAlgorithms();
+    
+    print("Factorial of 5: " + math.factorial(5));
+    print("Fibonacci of 10: " + math.fibonacci(10));
+    print("GCD of 48 and 18: " + math.gcd(48, 18));
+    print("Is 17 prime? " + math.isPrime(17));
+    print("Is 20 prime? " + math.isPrime(20));
+    
+    return 0;
+}

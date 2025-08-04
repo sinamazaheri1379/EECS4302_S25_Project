@@ -1,0 +1,235 @@
+// test-oop-inheritance.tc
+// Tests inheritance, method overriding, super calls, and polymorphism
+
+// Base class
+class Animal {
+    protected string name;
+    protected int age;
+    
+    public Animal(string n, int a) {
+        this.name = n;
+        this.age = a;
+    }
+    
+    public string getName() {
+        return name;
+    }
+    
+    public int getAge() {
+        return age;
+    }
+    
+    public void makeSound() {
+        print("Some generic animal sound");
+    }
+    
+    public string getInfo() {
+        return "Animal: " + name + ", age " + age;
+    }
+    
+    public void sleep() {
+        print(name + " is sleeping");
+    }
+}
+
+// Derived class
+class Dog extends Animal {
+    private string breed;
+    
+    public Dog(string n, int a, string b) {
+        super(n, a);  // Call parent constructor
+        this.breed = b;
+    }
+    
+    // Method override
+    public void makeSound() {
+        print("Woof! Woof!");
+    }
+    
+    // Override with super call
+    public string getInfo() {
+        return super.getInfo() + ", breed: " + breed;
+    }
+    
+    // New method specific to Dog
+    public void wagTail() {
+        print(name + " is wagging tail");
+    }
+    
+    public string getBreed() {
+        return breed;
+    }
+}
+
+// Another derived class
+class Cat extends Animal {
+    private boolean isIndoor;
+    
+    public Cat(string n, int a, boolean indoor) {
+        super(n, a);
+        this.isIndoor = indoor;
+    }
+    
+    // Method override
+    public void makeSound() {
+        print("Meow!");
+    }
+    
+    // New method
+    public void purr() {
+        print(name + " is purring");
+    }
+    
+    public boolean getIsIndoor() {
+        return isIndoor;
+    }
+}
+
+// Multi-level inheritance
+class Kitten extends Cat {
+    private string furColor;
+    
+    public Kitten(string n, int a, boolean indoor, string color) {
+        super(n, a, indoor);
+        this.furColor = color;
+    }
+    
+    // Override again
+    public void makeSound() {
+        print("Mew mew!");
+    }
+    
+    public void play() {
+        print(name + " is playing with yarn");
+    }
+}
+
+// Abstract class concept (using regular class as abstract not directly supported)
+class Shape {
+    protected string color;
+    
+    public Shape(string c) {
+        this.color = c;
+    }
+    
+    // "Abstract" method - should be overridden
+    public float getArea() {
+        print("Error: getArea() must be overridden");
+        return 0.0;
+    }
+    
+    public string getColor() {
+        return color;
+    }
+}
+
+class Rectangle extends Shape {
+    private float width;
+    private float height;
+    
+    public Rectangle(string c, float w, float h) {
+        super(c);
+        this.width = w;
+        this.height = h;
+    }
+    
+    // Override "abstract" method
+    public float getArea() {
+        return width * height;
+    }
+}
+
+class Circle extends Shape {
+    private float radius;
+    private static final float PI = 3.14159;
+    
+    public Circle(string c, float r) {
+        super(c);
+        this.radius = r;
+    }
+    
+    public float getArea() {
+        return PI * radius * radius;
+    }
+}
+
+void testInheritance() {
+    // Create objects
+    Animal genericAnimal = new Animal("Generic", 5);
+    Dog myDog = new Dog("Buddy", 3, "Golden Retriever");
+    Cat myCat = new Cat("Whiskers", 2, true);
+    Kitten myKitten = new Kitten("Fluffy", 1, true, "orange");
+    
+    // Test method calls
+    genericAnimal.makeSound();  // Generic sound
+    myDog.makeSound();          // Woof!
+    myCat.makeSound();          // Meow!
+    myKitten.makeSound();       // Mew mew!
+    
+    // Test inherited methods
+    string dogName = myDog.getName();     // Inherited from Animal
+    int catAge = myCat.getAge();          // Inherited from Animal
+    myDog.sleep();                        // Inherited from Animal
+    
+    // Test specific methods
+    myDog.wagTail();                      // Dog-specific
+    myCat.purr();                         // Cat-specific
+    myKitten.play();                      // Kitten-specific
+    
+    // Test polymorphism
+    Animal animal1 = myDog;               // Upcast - OK
+    Animal animal2 = myCat;               // Upcast - OK
+    
+    animal1.makeSound();                  // Calls Dog's makeSound()
+    animal2.makeSound();                  // Calls Cat's makeSound()
+    
+    // Test downcast (if supported)
+    // Dog dog2 = (Dog) animal1;          // Downcast - should be OK
+    // Cat cat2 = (Cat) animal1;          // ERROR: Invalid cast
+    
+    // Test instanceof (if supported)
+    // boolean isDog = animal1 instanceof Dog;     // true
+    // boolean isCat = animal1 instanceof Cat;     // false
+    
+    // Test method resolution
+    string info = myDog.getInfo();        // Calls overridden method with super
+}
+
+void testShapeHierarchy() {
+    Shape[] shapes = new Shape[3];
+    shapes[0] = new Rectangle("red", 5.0, 3.0);
+    shapes[1] = new Circle("blue", 2.5);
+    shapes[2] = new Rectangle("green", 4.0, 4.0);
+    
+    // Polymorphic method calls
+    for (int i = 0; i < 3; i++) {
+        float area = shapes[i].getArea();  // Calls appropriate overridden method
+        string color = shapes[i].getColor();
+        print("Shape " + i + " (" + color + ") has area: " + area);
+    }
+}
+
+// Test inheritance errors
+void testInheritanceErrors() {
+    // Test circular inheritance (should be caught at compile time)
+    // class A extends B { }  // ERROR if B extends A
+    
+    // Test extending undefined class
+    // class BadDog extends UndefinedAnimal { }  // ERROR: Undefined class
+    
+    // Test accessing private parent fields
+    Dog d = new Dog("Rex", 4, "Beagle");
+    // string parentName = d.name;  // OK - protected in parent
+    // int parentAge = d.age;       // OK - protected in parent
+    
+    // Test invalid super usage
+    // super.makeSound();  // ERROR: super used outside of class
+}
+
+int main() {
+    testInheritance();
+    testShapeHierarchy();
+    testInheritanceErrors();
+    
+    return 0;
+}

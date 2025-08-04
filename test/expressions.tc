@@ -1,0 +1,198 @@
+// test-expressions.tc
+// Tests complex expressions, operator precedence, and type conversions
+
+class Calculator {
+    // Test arithmetic operations
+    public int add(int a, int b) {
+        return a + b;
+    }
+    
+    public float divide(float a, float b) {
+        if (b != 0.0) {
+            return a / b;
+        }
+        print("Error: Division by zero");
+        return 0.0;
+    }
+    
+    // Test compound operations
+    public int compound(int x) {
+        x += 5;      // x = x + 5
+        x -= 2;      // x = x - 2
+        x *= 3;      // x = x * 3
+        x /= 2;      // x = x / 2
+        x %= 4;      // x = x % 4
+        return x;
+    }
+}
+
+void testArithmeticExpressions() {
+    int a = 10;
+    int b = 3;
+    float c = 5.5;
+    float d = 2.0;
+    
+    // Basic arithmetic
+    int sum = a + b;          // 13
+    int diff = a - b;         // 7
+    int prod = a * b;         // 30
+    int quot = a / b;         // 3 (integer division)
+    int rem = a % b;          // 1
+    
+    // Float arithmetic
+    float fSum = c + d;       // 7.5
+    float fDiff = c - d;      // 3.5
+    float fProd = c * d;      // 11.0
+    float fQuot = c / d;      // 2.75
+    
+    // Mixed arithmetic (type promotion)
+    float mixed1 = a + c;     // 15.5 (int promoted to float)
+    float mixed2 = b * d;     // 6.0
+    
+    // Complex expressions with precedence
+    int complex1 = a + b * 2;               // 10 + 6 = 16
+    int complex2 = (a + b) * 2;             // 13 * 2 = 26
+    int complex3 = a * b + c / d;           // 30 + 2.75 = 32.75 -> 32
+    int complex4 = a + b * c - d;           // 10 + 16.5 - 2 = 24.5 -> 24
+    
+    // Unary operators
+    int neg = -a;             // -10
+    int pos = +b;             // 3
+    boolean notTrue = !true;  // false
+    
+    // Pre/post increment/decrement
+    int x = 5;
+    int preInc = ++x;         // x = 6, preInc = 6
+    int postInc = x++;        // postInc = 6, x = 7
+    int preDec = --x;         // x = 6, preDec = 6
+    int postDec = x--;        // postDec = 6, x = 5
+}
+
+void testLogicalAndRelational() {
+    int x = 10;
+    int y = 20;
+    boolean a = true;
+    boolean b = false;
+    
+    // Relational operators
+    boolean less = x < y;           // true
+    boolean greater = x > y;        // false
+    boolean lessEq = x <= 10;       // true
+    boolean greaterEq = y >= 20;    // true
+    boolean equal = x == 10;        // true
+    boolean notEqual = x != y;      // true
+    
+    // Logical operators
+    boolean and1 = a && b;          // false
+    boolean and2 = (x < y) && (y > 15);  // true
+    boolean or1 = a || b;           // true
+    boolean or2 = (x > 20) || (y == 20); // true
+    
+    // Short-circuit evaluation
+    boolean shortCircuit1 = false && (x++ > 0);  // x not incremented
+    boolean shortCircuit2 = true || (y++ < 30);  // y not incremented
+    
+    // Complex logical expressions
+    boolean complex1 = (x > 5) && (y < 30) && a;  // true
+    boolean complex2 = !((x == 10) || (y != 20)); // false
+    boolean complex3 = (x < y) && (a || b) && (x != 0); // true
+}
+
+void testTernaryAndCasting() {
+    int a = 10;
+    int b = 20;
+    
+    // Ternary operator
+    int max = (a > b) ? a : b;              // 20
+    string result = (a == 10) ? "Ten" : "Not Ten";  // "Ten"
+    float value = (a < b) ? 1.5 : 2.5;     // 1.5
+    
+    // Nested ternary
+    int grade = 85;
+    string letterGrade = (grade >= 90) ? "A" :
+                        (grade >= 80) ? "B" :
+                        (grade >= 70) ? "C" :
+                        (grade >= 60) ? "D" : "F";  // "B"
+    
+    // Type casting
+    float f = 3.14;
+    int i = (int) f;                        // 3
+    
+    // Object casting (if supported)
+    Animal animal = new Dog("Rex", 3, "Beagle");
+    Dog dog = (Dog) animal;                 // OK
+    // Cat cat = (Cat) animal;              // ERROR: Invalid cast
+}
+
+void testStringOperations() {
+    string s1 = "Hello";
+    string s2 = "World";
+    string s3 = "123";
+    int num = 456;
+    
+    // String concatenation
+    string concat1 = s1 + " " + s2;         // "Hello World"
+    string concat2 = s1 + s3;               // "Hello123"
+    
+    // Mixed type concatenation (if supported)
+    // string concat3 = s1 + num;           // Depends on implementation
+    // string concat4 = num + s1;           // May require string conversion
+    
+    // String comparison
+    boolean same = s1 == s1;                // true (same reference)
+    boolean diff = s1 == s2;                // false
+    boolean notSame = s1 != s2;             // true
+}
+
+void testArrayExpressions() {
+    int[] arr = {1, 2, 3, 4, 5};
+    int[][] matrix = {{1, 2}, {3, 4}};
+    
+    // Array element in expressions
+    int sum = arr[0] + arr[1] + arr[2];     // 6
+    int product = arr[2] * arr[3];          // 12
+    boolean compare = arr[0] < arr[4];      // true
+    
+    // Complex array index expressions
+    int i = 2;
+    int element1 = arr[i + 1];              // arr[3] = 4
+    int element2 = arr[i * 2 - 1];          // arr[3] = 4
+    
+    // 2D array expressions
+    int matrixSum = matrix[0][0] + matrix[1][1];  // 5
+    int matrixProd = matrix[0][1] * matrix[1][0]; // 6
+}
+
+// Test operator precedence
+void testPrecedence() {
+    // Arithmetic precedence
+    int a = 2 + 3 * 4;          // 14 (not 20)
+    int b = (2 + 3) * 4;        // 20
+    int c = 10 / 2 * 3;         // 15 (left to right)
+    int d = 10 / (2 * 3);       // 1
+    
+    // Mixed operators
+    boolean e = 5 + 3 > 2 * 3;  // 8 > 6 = true
+    boolean f = 2 + 3 == 5 && 4 < 6;  // true && true = true
+    
+    // Complex precedence
+    int g = 1 + 2 * 3 / 4 % 5;  // 1 + ((2*3)/4)%5 = 1 + 1 = 2
+}
+
+int main() {
+    Calculator calc = new Calculator();
+    
+    testArithmeticExpressions();
+    testLogicalAndRelational();
+    testTernaryAndCasting();
+    testStringOperations();
+    testArrayExpressions();
+    testPrecedence();
+    
+    // Test calculator methods
+    int result1 = calc.add(5, 3);
+    float result2 = calc.divide(10.0, 3.0);
+    int result3 = calc.compound(7);
+    
+    return 0;
+}

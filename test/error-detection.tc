@@ -1,0 +1,279 @@
+// test-error-detection.tc
+// This file contains various error scenarios that the type checker should detect
+// Uncomment specific lines to test individual error cases
+
+// ========== UNDEFINED SYMBOL ERRORS ==========
+
+void testUndefinedSymbols() {
+    // Undefined variable
+    // int x = undefinedVar + 10;  // ERROR: Undefined variable 'undefinedVar'
+    
+    // Undefined function
+    // int result = undefinedFunction(5);  // ERROR: Undefined function 'undefinedFunction'
+    
+    // Undefined class
+    // UndefinedClass obj = new UndefinedClass();  // ERROR: Undefined class 'UndefinedClass'
+    
+    // Undefined method
+    string s = "hello";
+    // s.undefinedMethod();  // ERROR: Undefined method 'undefinedMethod'
+    
+    // Undefined field
+    // class TestClass {
+    //     public int x;
+    // }
+    // TestClass tc = new TestClass();
+    // int y = tc.undefinedField;  // ERROR: Undefined field 'undefinedField'
+}
+
+// ========== TYPE MISMATCH ERRORS ==========
+
+void testTypeMismatches() {
+    int intVar = 42;
+    string strVar = "hello";
+    boolean boolVar = true;
+    float floatVar = 3.14;
+    
+    // Basic type mismatches
+    // int bad1 = strVar;           // ERROR: Cannot assign string to int
+    // string bad2 = intVar;        // ERROR: Cannot assign int to string
+    // boolean bad3 = floatVar;     // ERROR: Cannot assign float to boolean
+    
+    // Arithmetic type mismatches
+    // int bad4 = intVar + strVar;  // ERROR: Cannot add int and string
+    // float bad5 = strVar * 2;     // ERROR: Cannot multiply string and int
+    
+    // Comparison type mismatches
+    // boolean bad6 = intVar < strVar;  // ERROR: Cannot compare int and string
+    
+    // Array type mismatches
+    int[] intArray = {1, 2, 3};
+    string[] strArray = {"a", "b", "c"};
+    // intArray = strArray;         // ERROR: Cannot assign string[] to int[]
+    // intArray[0] = "hello";       // ERROR: Cannot assign string to int
+    
+    // Function argument type mismatches
+    void takesInt(int x) { }
+    // takesInt(strVar);            // ERROR: Argument type mismatch
+    // takesInt(boolVar);           // ERROR: Argument type mismatch
+}
+
+// ========== CONTROL FLOW ERRORS ==========
+
+int testMissingReturn1(int x) {
+    if (x > 0) {
+        return x;
+    }
+    // ERROR: Missing return statement (else branch)
+}
+
+int testMissingReturn2(boolean flag) {
+    if (flag) {
+        return 1;
+    } else {
+        print("No return here");
+    }
+    // ERROR: Missing return statement in else branch
+}
+
+void testInvalidBreakContinue() {
+    // break;     // ERROR: break outside of loop/switch
+    // continue;  // ERROR: continue outside of loop
+    
+    if (true) {
+        // break;  // ERROR: break not in loop/switch
+    }
+}
+
+void testInvalidReturn() {
+    return;  // OK in void function
+    // return 42;  // ERROR: Cannot return value from void function
+}
+
+int testWrongReturnType() {
+    // return "string";  // ERROR: Cannot return string from int function
+    // return;           // ERROR: Must return a value
+    return 42;  // OK
+}
+
+// ========== CONDITION TYPE ERRORS ==========
+
+void testConditionErrors() {
+    int x = 10;
+    string s = "test";
+    
+    // If condition must be boolean
+    // if (x) { }         // ERROR: Condition must be boolean
+    // if (s) { }         // ERROR: Condition must be boolean
+    // if (null) { }      // ERROR: Condition must be boolean
+    
+    // While condition must be boolean
+    // while (x) { }      // ERROR: Condition must be boolean
+    // while (s) { }      // ERROR: Condition must be boolean
+    
+    // For condition must be boolean
+    // for (int i = 0; i; i++) { }  // ERROR: Condition must be boolean
+    
+    // Do-while condition must be boolean
+    // do { } while (x);  // ERROR: Condition must be boolean
+}
+
+// ========== ACCESS VIOLATION ERRORS ==========
+
+class AccessTest {
+    private int privateField = 10;
+    protected int protectedField = 20;
+    public int publicField = 30;
+    
+    private void privateMethod() { }
+    protected void protectedMethod() { }
+    public void publicMethod() { }
+}
+
+void testAccessViolations() {
+    AccessTest obj = new AccessTest();
+    
+    // Field access violations
+    // int x = obj.privateField;    // ERROR: Cannot access private field
+    // int y = obj.protectedField;  // ERROR: Cannot access protected field (outside class hierarchy)
+    int z = obj.publicField;        // OK
+    
+    // Method access violations
+    // obj.privateMethod();         // ERROR: Cannot access private method
+    // obj.protectedMethod();       // ERROR: Cannot access protected method (outside class hierarchy)
+    obj.publicMethod();             // OK
+}
+
+// ========== STATIC CONTEXT ERRORS ==========
+
+class StaticTest {
+    private int instanceField = 10;
+    private static int staticField = 20;
+    
+    public static void staticMethod() {
+        // int x = instanceField;    // ERROR: Cannot access instance field from static method
+        // this.instanceField = 5;   // ERROR: Cannot use 'this' in static context
+        int y = staticField;         // OK
+    }
+    
+    public void instanceMethod() {
+        int x = instanceField;       // OK
+        int y = staticField;         // OK
+    }
+}
+
+// ========== FINAL VARIABLE ERRORS ==========
+
+void testFinalErrors() {
+    final int CONST = 100;
+    // CONST = 200;                 // ERROR: Cannot assign to final variable
+    
+    final int uninitialized;
+    uninitialized = 50;             // OK - first assignment
+    // uninitialized = 60;          // ERROR: Cannot assign to final variable (already initialized)
+}
+
+class FinalFieldTest {
+    private final int x = 10;
+    private final int y;
+    
+    public FinalFieldTest() {
+        y = 20;                     // OK - initialization in constructor
+        // x = 30;                  // ERROR: Final field already initialized
+    }
+    
+    public void method() {
+        // x = 40;                  // ERROR: Cannot assign to final field
+        // y = 50;                  // ERROR: Cannot assign to final field
+    }
+}
+
+// ========== ARRAY ERRORS ==========
+
+void testArrayErrors() {
+    int[] arr = new int[5];
+    
+    // Invalid array index type
+    string index = "2";
+    // int value = arr[index];      // ERROR: Array index must be int
+    // arr[3.14] = 10;              // ERROR: Array index must be int
+    // arr[true] = 20;              // ERROR: Array index must be int
+    
+    // Invalid array size
+    // int[] bad1 = new int[-5];    // ERROR: Invalid array size (negative)
+    // int[] bad2 = new int["ten"]; // ERROR: Array size must be int
+    
+    // Array initialization type mismatch
+    // int[] bad3 = {1, 2, "three", 4};  // ERROR: Array initializer type mismatch
+}
+
+// ========== INHERITANCE ERRORS ==========
+
+// Circular inheritance
+// class A extends B { }  // ERROR if B extends A
+// class B extends A { }
+
+// Undefined superclass
+// class C extends UndefinedClass { }  // ERROR: Undefined class 'UndefinedClass'
+
+// Invalid override
+class Parent {
+    public int method() {
+        return 42;
+    }
+    
+    public final void finalMethod() { }
+}
+
+class Child extends Parent {
+    // Wrong return type
+    // public string method() {     // ERROR: Invalid override - wrong return type
+    //     return "42";
+    // }
+    
+    // Override final method
+    // public void finalMethod() {  // ERROR: Cannot override final method
+    // }
+}
+
+// ========== CONSTRUCTOR ERRORS ==========
+
+class ConstructorTest {
+    private int x;
+    
+    public ConstructorTest(int x) {
+        this.x = x;
+    }
+    
+    // No default constructor available
+}
+
+void testConstructorErrors() {
+    // Wrong number of arguments
+    // ConstructorTest obj1 = new ConstructorTest();  // ERROR: No matching constructor
+    
+    // Wrong argument types
+    // ConstructorTest obj2 = new ConstructorTest("string");  // ERROR: Wrong argument type
+    
+    ConstructorTest obj3 = new ConstructorTest(42);  // OK
+}
+
+// ========== SPECIAL KEYWORD ERRORS ==========
+
+void testSpecialKeywordErrors() {
+    // 'this' outside of class
+    // int x = this.field;          // ERROR: 'this' used outside of class
+    
+    // 'super' outside of class
+    // super.method();              // ERROR: 'super' used outside of class
+}
+
+// Global context errors
+// this.x = 10;                    // ERROR: 'this' used outside of class
+// super.method();                 // ERROR: 'super' used outside of class
+
+int main() {
+    print("Error detection test suite");
+    print("Uncomment specific error lines to test type checker");
+    return 0;
+}
