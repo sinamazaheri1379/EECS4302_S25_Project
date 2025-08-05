@@ -29,7 +29,7 @@ import java.util.*;
  */
 public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     
-    private SymbolTable globalScope;
+    private final SymbolTable globalScope;
     private SymbolTable currentScope;
     private ClassSymbol currentClass;
     private MethodSymbol currentMethod;
@@ -39,6 +39,8 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     private Set<VariableSymbol> initializedVars = new HashSet<>();
     private List<SemanticError> errors = new ArrayList<>();
     private Stack<ReturnTracker> returnTrackers = new Stack<>();
+    private Map<ParseTree, SymbolTable> nodeScopes;
+    private Stack<Integer> childScopeIndices = new Stack<>();
     
     // Enhanced Return Tracking
     private class ReturnPath {
@@ -124,9 +126,10 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         }
     }
     
-    public TypeChecker(SymbolTable globalScope) {
+    public TypeChecker(SymbolTable globalScope, Map<ParseTree, SymbolTable> nodeScopes) {
         this.globalScope = globalScope;
         this.currentScope = globalScope;
+        this.nodeScopes = nodeScopes;
         this.loopStack = new Stack<>();
         this.returnTrackers = new Stack<>();
         this.errors = new ArrayList<>();
@@ -272,20 +275,26 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     }
     
     private Type getArrayType(Type baseType, VarDeclaratorContext declarator) {
-        Type result = baseType;
+        Type type = baseType;
         
-        // Count array dimensions by looking for '[' tokens
+        // Count array dimensions from the declarator
+        int dimensions = 0;
         for (int i = 0; i < declarator.getChildCount(); i++) {
             ParseTree child = declarator.getChild(i);
             if (child instanceof TerminalNode) {
                 TerminalNode terminal = (TerminalNode) child;
                 if (terminal.getSymbol().getType() == TypeCheckerParser.LBRACK) {
-                    result = new ArrayType(result);
+                    dimensions++;
                 }
             }
         }
         
-        return result;
+        // Build array type
+        for (int i = 0; i < dimensions; i++) {
+            type = new ArrayType(type);
+        }
+        
+        return type;
     }
     
     private Type getTypeFromParamContext(ParamContext param) {
@@ -324,7 +333,9 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     }
     
     private boolean isNumericType(Type type) {
-        return type.equals(PrimitiveType.INT) || type.equals(PrimitiveType.FLOAT);
+        return type.equals(PrimitiveType.INT) || 
+               type.equals(PrimitiveType.FLOAT) || 
+               type.equals(PrimitiveType.CHAR);  
     }
     
     private boolean isLvalueExpression(ExprContext expr) {
@@ -583,36 +594,13 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         
         String funcName = ctx.ID().getText();
         
-        // Handle VOID return type
-        Type returnType = null;
-        if (ctx.VOID() != null) {
-            returnType = PrimitiveType.VOID;
-        } else if (ctx.type() != null) {
-            returnType = visit(ctx.type());
-            // Handle array return types
-            for (int i = 0; i < ctx.getChildCount(); i++) {
-                ParseTree child = ctx.getChild(i);
-                if (child instanceof TerminalNode) {
-                    TerminalNode terminal = (TerminalNode) child;
-                    if (terminal.getSymbol().getType() == TypeCheckerParser.LBRACK) {
-                        returnType = new ArrayType(returnType);
-                    }
-                }
-            }
-        }
-        
         // Get function symbol
         Symbol symbol = currentScope.resolve(funcName);
         if (symbol == null || !(symbol instanceof FunctionSymbol)) {
-            // Try method if in class
-            if (currentMethod != null) {
-                symbol = currentMethod;
-            } else {
-                addError(ctx.ID().getSymbol(),
-                    "Function '" + funcName + "' not found in symbol table",
-                    SemanticError.ErrorType.INTERNAL_ERROR);
-                return null;
-            }
+            addError(ctx.ID().getSymbol(),
+                "Function '" + funcName + "' not found in symbol table",
+                SemanticError.ErrorType.INTERNAL_ERROR);
+            return null;
         }
         
         FunctionSymbol function = (FunctionSymbol) symbol;
@@ -623,24 +611,23 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         
         SymbolTable previousScope = currentScope;
         
-        // Create function scope
-        if (function instanceof MethodSymbol) {
-            currentScope = SymbolTable.createMethodScope(funcName, currentScope, function);
-        } else {
-            // Regular functions should have their own function scope
-            currentScope = SymbolTable.createMethodScope(funcName, currentScope, function);
+        // IMPORTANT: Find the existing method scope created by SymbolTableBuilder
+        SymbolTable functionScope = findFunctionScope(function);
+        
+        if (functionScope == null) {
+            addError(ctx.ID().getSymbol(),
+                "Function scope for '" + funcName + "' not found",
+                SemanticError.ErrorType.INTERNAL_ERROR);
+            return null;
         }
         
-        // Add parameters to scope
-        for (VariableSymbol param : function.getParameters()) {
-            currentScope.define(param);
-        }
+        currentScope = functionScope;
         
         // Initialize return tracking
         ReturnTracker tracker = new ReturnTracker();
         returnTrackers.push(tracker);
         
-        // Visit block
+        // Visit block - this will visit the function body
         visit(ctx.block());
         
         // Check return requirements
@@ -648,7 +635,7 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
             Token errorToken = ctx.block() != null && ctx.block().getStop() != null ?
                 ctx.block().getStop() : ctx.ID().getSymbol();
             addError(errorToken,
-                "Method '" + funcName + "' must return a value of type " + function.getReturnType().getName(),
+                "Function '" + funcName + "' must return a value of type " + function.getReturnType().getName(),
                 SemanticError.ErrorType.MISSING_RETURN);
         }
         
@@ -658,6 +645,37 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         currentScope = previousScope;
         
         return function.getType();
+    }
+
+    // Helper method to find function scope
+    private SymbolTable findFunctionScope(FunctionSymbol function) {
+        // Search in current scope's children first
+        if (currentScope.getChildren() != null) {
+            for (SymbolTable child : currentScope.getChildren()) {
+                if (child.getScopeType() == SymbolTable.ScopeType.METHOD && 
+                    child.getEnclosingMethod() == function) {
+                    return child;
+                }
+            }
+        }
+        
+        // If not found, search from global scope
+        return findScopeRecursive(globalScope, function);
+    }
+
+    private SymbolTable findScopeRecursive(SymbolTable scope, FunctionSymbol function) {
+        if (scope.getChildren() != null) {
+            for (SymbolTable child : scope.getChildren()) {
+                if (child.getScopeType() == SymbolTable.ScopeType.METHOD && 
+                    child.getEnclosingMethod() == function) {
+                    return child;
+                }
+                // Recursive search
+                SymbolTable found = findScopeRecursive(child, function);
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
     
     // Variable declaration visitors
@@ -672,6 +690,7 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         if (ctx == null || ctx.type() == null) return null;
         
         Type baseType = getType(ctx.type());
+        boolean isFinal = ctx.FINAL() != null;
         
         for (var declarator : ctx.varDeclarator()) {
             if (declarator == null || declarator.ID() == null) continue;
@@ -679,8 +698,9 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
             String varName = declarator.ID().getText();
             Type varType = getArrayType(baseType, declarator);
             
-            // Get variable symbol
-            Symbol symbol = currentScope.resolveLocal(varName);
+            // Use resolve, not resolveLocal - we want to find the variable wherever it was defined
+            Symbol symbol = currentScope.resolve(varName);
+            
             if (!(symbol instanceof VariableSymbol)) {
                 addError(declarator.ID().getSymbol(),
                     "Variable '" + varName + "' not found in symbol table",
@@ -690,7 +710,7 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
             
             VariableSymbol var = (VariableSymbol) symbol;
             
-            // Process initializer
+            // Process initializer if present
             if (declarator.initializer() != null) {
                 Type initType = visit(declarator.initializer());
                 if (initType != null && !TypeCompatibility.isAssignmentCompatible(varType, initType)) {
@@ -700,29 +720,42 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
                 }
                 var.setInitialized(true);
                 initializedVars.add(var);
+            } else if (isFinal) {
+                addError(declarator.ID().getSymbol(),
+                    "Final variable '" + varName + "' must be initialized",
+                    SemanticError.ErrorType.UNINITIALIZED_FINAL);
             }
         }
         
         return baseType;
     }
     
-    // Statement visitors
     @Override
     public Type visitBlock(BlockContext ctx) {
         if (ctx == null) return null;
         
-        // Create new scope for block
-        SymbolTable blockScope = SymbolTable.createBlockScope(currentScope);
-        SymbolTable previousScope = currentScope;
-        currentScope = blockScope;
+        // Get the scope that was created for this block
+        SymbolTable blockScope = nodeScopes.get(ctx);
         
-        // Visit all statements
-        for (var stmt : ctx.statement()) {
-            visit(stmt);
+        if (blockScope == null) {
+            // Shouldn't happen - stay in current scope
+            addError(ctx.getStart(),
+                "Block scope not found - internal error",
+                SemanticError.ErrorType.INTERNAL_ERROR);
+        } else {
+            // Enter the block scope
+            SymbolTable previousScope = currentScope;
+            currentScope = blockScope;
+            
+            // Visit statements in the correct scope
+            for (var stmt : ctx.statement()) {
+                visit(stmt);
+            }
+            
+            // Restore previous scope
+            currentScope = previousScope;
         }
         
-        // Restore previous scope
-        currentScope = previousScope;
         return null;
     }
     
@@ -799,12 +832,14 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     
     @Override
     public Type visitForStmt(ForStmtContext ctx) {
-        // Create new scope for loop variable
-        SymbolTable loopScope = SymbolTable.createBlockScope(currentScope);
-        SymbolTable previousScope = currentScope;
-        currentScope = loopScope;
+        if (ctx == null) return null;
         
-        // Process initialization
+        // Create new scope for the for loop
+        SymbolTable forScope = SymbolTable.createBlockScope(currentScope);
+        SymbolTable previousScope = currentScope;
+        currentScope = forScope;
+        
+        // Process for init (this adds variables to the loop scope)
         if (ctx.forInit() != null) {
             visit(ctx.forInit());
         }
@@ -812,9 +847,9 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         // Check condition
         if (ctx.expr() != null) {
             Type condType = visit(ctx.expr());
-            if (!condType.equals(PrimitiveType.BOOLEAN)) {
+            if (condType != null && !condType.equals(PrimitiveType.BOOLEAN)) {
                 addError(ctx.expr().getStart(),
-                    "For condition must be boolean, found " + condType.getName(),
+                    "For condition must be boolean",
                     SemanticError.ErrorType.TYPE_MISMATCH);
             }
         }
@@ -824,14 +859,14 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
             visit(ctx.forUpdate());
         }
         
-        // Process body
         loopStack.push(true);
-        if (ctx.statement() != null) {
-            visit(ctx.statement());
-        }
-        loopStack.pop();
         
+        // Visit body
+        visit(ctx.statement());
+        
+        loopStack.pop();
         currentScope = previousScope;
+        
         return null;
     }
     
@@ -1079,51 +1114,8 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     @Override
     public Type visitLocalVarDecl(LocalVarDeclContext ctx) {
         if (ctx == null || ctx.varDecl() == null) return null;
-        
-        VarDeclContext varDecl = ctx.varDecl();
-        boolean isFinal = ctx.FINAL() != null;
-        
-        // Get the base type once
-        Type baseType = getType(varDecl.type());
-        
-        // Process each declarator
-        for (var declarator : varDecl.varDeclarator()) {
-            String varName = declarator.ID().getText();
-            
-            // Handle array dimensions for this specific declarator
-            Type varType = getArrayType(baseType, declarator);
-            
-            // Get the variable symbol from the scope
-            Symbol symbol = currentScope.resolve(varName);
-            
-            if (!(symbol instanceof VariableSymbol)) {
-                addError(declarator.ID().getSymbol(),
-                    "Variable '" + varName + "' not found in symbol table",
-                    SemanticError.ErrorType.INTERNAL_ERROR);
-                continue;
-            }
-            
-            VariableSymbol var = (VariableSymbol) symbol;
-            
-            // Process initializer if present
-            if (declarator.initializer() != null) {
-                Type initType = visit(declarator.initializer());
-                if (initType != null && !TypeCompatibility.isAssignmentCompatible(varType, initType)) {
-                    addError(declarator.initializer().getStart(),
-                        "Cannot initialize " + varType.getName() + " with " + initType.getName(),
-                        SemanticError.ErrorType.TYPE_MISMATCH);
-                }
-                var.setInitialized(true);
-                initializedVars.add(var);
-            } else if (isFinal) {
-                // Final variables must be initialized
-                addError(declarator.ID().getSymbol(),
-                    "Final variable '" + varName + "' must be initialized",
-                    SemanticError.ErrorType.UNINITIALIZED_FINAL);
-            }
-        }
-        
-        return baseType;  // Return the base type
+        // The FINAL modifier is handled in varDecl
+        return visit(ctx.varDecl());
     }
     
     @Override
@@ -1141,28 +1133,38 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
         Type collectionType = visit(ctx.expr());
         Type elementType = visit(ctx.type());
         
-        // Verify collection is iterable (simplified: must be array)
+        // Verify collection is an array
         if (!(collectionType instanceof ArrayType)) {
             addError(ctx.expr().getStart(),
                 "For-each requires array type, found " + collectionType.getName(),
                 SemanticError.ErrorType.TYPE_MISMATCH);
-        } else {
-            ArrayType arrayType = (ArrayType) collectionType;
-            if (!TypeCompatibility.isAssignmentCompatible(elementType, arrayType.getElementType())) {
-                addError(ctx.type().getStart(),
-                    "Cannot iterate over " + arrayType.getName() + " with element type " + elementType.getName(),
-                    SemanticError.ErrorType.TYPE_MISMATCH);
-            }
+            currentScope = previousScope;
+            return null;
         }
         
-        // Process body
+        ArrayType arrayType = (ArrayType) collectionType;
+        
+        // Create loop variable
+        String varName = ctx.ID().getText();
+        VariableSymbol loopVar = new VariableSymbol(varName, elementType);
+        currentScope.define(loopVar);
+        
+        // Check type compatibility
+        if (!TypeCompatibility.isAssignmentCompatible(elementType, arrayType.getElementType())) {
+            addError(ctx.type().getStart(),
+                "Cannot assign " + arrayType.getElementType().getName() + 
+                " to " + elementType.getName(),
+                SemanticError.ErrorType.TYPE_MISMATCH);
+        }
+        
         loopStack.push(true);
-        if (ctx.statement() != null) {
-            visit(ctx.statement());
-        }
-        loopStack.pop();
         
+        // Visit body
+        visit(ctx.statement());
+        
+        loopStack.pop();
         currentScope = previousScope;
+        
         return null;
     }
     
@@ -1629,51 +1631,59 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
 
     @Override
     public Type visitArrayAccess(ArrayAccessContext ctx) {
-        if (ctx == null || ctx.expr().size() != 2) {
+        if (ctx == null || ctx.expr().size() < 2) {
             return ErrorType.getInstance();
         }
         
         Type arrayType = visit(ctx.expr(0));
         Type indexType = visit(ctx.expr(1));
         
-        if (arrayType instanceof ErrorType || indexType instanceof ErrorType) {
-            return ErrorType.getInstance();
+        // Check index is integer
+        if (!indexType.equals(PrimitiveType.INT)) {
+            addError(ctx.expr(1).getStart(),
+                "Array index must be an integer",
+                SemanticError.ErrorType.TYPE_MISMATCH);
         }
         
+        // Check array type
         if (!(arrayType instanceof ArrayType)) {
-            addError(ctx.LBRACK().getSymbol(),
+            addError(ctx.expr(0).getStart(),
                 "Cannot index non-array type " + arrayType.getName(),
                 SemanticError.ErrorType.TYPE_MISMATCH);
             return ErrorType.getInstance();
         }
         
-        if (!indexType.equals(PrimitiveType.INT)) {
-            addError(ctx.LBRACK().getSymbol(),
-                "Array index must be integer, found " + indexType.getName(),
-                SemanticError.ErrorType.ARRAY_INDEX_TYPE);
-            return ErrorType.getInstance();
-        }
-        
+        // Return element type
         return ((ArrayType) arrayType).getElementType();
     }
 
     @Override
     public Type visitNewArrayExpr(NewArrayExprContext ctx) {
-        if (ctx == null || ctx.type() == null || ctx.expr() == null) {
+        if (ctx == null || ctx.type() == null) {
             return ErrorType.getInstance();
         }
         
         Type elementType = visit(ctx.type());
-        Type sizeType = visit(ctx.expr());
         
-        if (!sizeType.equals(PrimitiveType.INT)) {
-            addError(ctx.expr().getStart(),
-                "Array size must be integer, found " + sizeType.getName(),
-                SemanticError.ErrorType.INVALID_ARRAY_SIZE);
-            return ErrorType.getInstance();
+        // Count the number of dimensions
+        int dimensions = 0;
+        for (var expr : ctx.expr()) {
+            dimensions++;
+            Type sizeType = visit(expr);
+            if (!sizeType.equals(PrimitiveType.INT)) {
+                addError(expr.getStart(),
+                    "Array size must be an integer",
+                    SemanticError.ErrorType.TYPE_MISMATCH);
+            }
         }
         
-        return new ArrayType(elementType);
+        // Build the array type with correct dimensions
+        Type arrayType = elementType;
+        for (int i = 0; i < dimensions; i++) {
+            arrayType = new ArrayType(arrayType);
+        }
+        
+        return arrayType;  // Return array type, not element type!
     }
 
     @Override
@@ -2073,9 +2083,7 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     }
     @Override
     public Type visitLocalVarDeclStmt(LocalVarDeclStmtContext ctx) {
-        if (ctx == null || ctx.localVarDecl() == null) {
-            return null;
-        }
+        if (ctx == null || ctx.localVarDecl() == null) return null;
         return visit(ctx.localVarDecl());
     }
 

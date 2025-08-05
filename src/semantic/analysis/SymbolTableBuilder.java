@@ -22,6 +22,7 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
     private List<SemanticError> errors;
     private Set<String> imports;
     private Map<String, List<ClassType>> unresolvedTypes;
+    private Map<ParseTree, SymbolTable> nodeScopes = new HashMap<>();
     
     public SymbolTableBuilder() {
         this.globalScope = SymbolTable.createGlobalScope();
@@ -48,7 +49,10 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         printlnFunc.addParameter(printlnParam);
         globalScope.define(printlnFunc);
     }
-    
+
+    public Map<ParseTree, SymbolTable> getNodeScopes() {
+        return nodeScopes;
+    }
     public SymbolTable getGlobalScope() { return globalScope; }
     public List<SemanticError> getErrors() { return errors; }
     public Set<String> getImports() { return imports; }
@@ -436,6 +440,10 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
     public Void visitBlock(BlockContext ctx) {
         // Create a new block scope
         SymbolTable blockScope = SymbolTable.createBlockScope(currentScope);
+        
+        // Store the association
+        nodeScopes.put(ctx, blockScope);
+        
         SymbolTable savedScope = currentScope;
         currentScope = blockScope;
         
@@ -498,7 +506,9 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
                 var.setInitialized(true);
             }
             
+            // MAKE SURE THIS IS HAPPENING
             currentScope.define(var);
+            System.out.println("Added variable '" + name + "' to scope: " + currentScope.getScopeName());
         }
         
         return null;

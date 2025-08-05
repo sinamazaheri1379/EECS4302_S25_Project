@@ -367,66 +367,14 @@
 <h1>Type Checking Report</h1>
 <div class='header-info'>
 <div class='info-item'><strong>File:</strong> test/minimal-basic.tc</div>
-<div class='info-item'><strong>Generated:</strong> 2025-08-04 16:55:47</div>
+<div class='info-item'><strong>Generated:</strong> 2025-08-04 22:20:58</div>
 </div>
 </header>
 <section class='summary'>
 <h2>Summary</h2>
-<div class='error-summary'>
-<div class='stat-grid'>
-<div class='stat-item'>
-<div class='stat-value'>3</div>
-<div class='stat-label'>Total Errors</div>
-</div>
-<div class='stat-item'>
-<div class='stat-value'>3</div>
-<div class='stat-label'>Internal error</div>
-</div>
-</div>
-</div>
-</section>
-<section class='errors'>
-<h2>Error Details</h2>
-<div class='error-list'>
-<div class='error-group'>
-<div class='error-line-header'>Line 6</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-other'>Internal error</span>
-<span class='error-message'>Variable &#39;x&#39; not found in symbol table</span>
-</div>
-<pre class='code-context'><code>      5 |     // Test basic local variable declaration
-&gt;&gt;    6 |     int x = 10;
-      7 |     
-</code></pre>
-</div>
-</div>
-<div class='error-group'>
-<div class='error-line-header'>Line 9</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-other'>Internal error</span>
-<span class='error-message'>Variable &#39;y&#39; not found in symbol table</span>
-</div>
-<pre class='code-context'><code>      8 |     // Test using the variable
-&gt;&gt;    9 |     int y = x + 5;
-     10 |     
-</code></pre>
-</div>
-</div>
-<div class='error-group'>
-<div class='error-line-header'>Line 12</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-other'>Internal error</span>
-<span class='error-message'>Variable &#39;z&#39; not found in symbol table</span>
-</div>
-<pre class='code-context'><code>     11 |     // Test final local variable
-&gt;&gt;   12 |     final int z = 20;
-     13 |     
-</code></pre>
-</div>
-</div>
+<div class='success-box'>
+<div class='success-icon'>✓</div>
+<div class='success-text'>No type errors found!</div>
 </div>
 </section>
 <section class='source-code'>
@@ -456,13 +404,13 @@
 <span id='line-3'></span>
 <span id='line-4'>int main() {</span>
 <span id='line-5'>    // Test basic local variable declaration</span>
-<span class='error-line' id='line-6'>    int x = 10;</span>
+<span id='line-6'>    int x = 10;</span>
 <span id='line-7'>    </span>
 <span id='line-8'>    // Test using the variable</span>
-<span class='error-line' id='line-9'>    int y = x + 5;</span>
+<span id='line-9'>    int y = x + 5;</span>
 <span id='line-10'>    </span>
 <span id='line-11'>    // Test final local variable</span>
-<span class='error-line' id='line-12'>    final int z = 20;</span>
+<span id='line-12'>    final int z = 20;</span>
 <span id='line-13'>    </span>
 <span id='line-14'>    // This should produce an error when uncommented:</span>
 <span id='line-15'>    // z = 30;  // ERROR: Cannot assign to final variable</span>
@@ -551,36 +499,6 @@
             <td>Variable</td>
             <td>12</td>
           </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-  <div class='scope-block'>
-    <div class='scope-header'>Scope: main_method</div>
-    <table class='symbol-table-content'>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Kind</th>
-          <th>Line</th>
-        </tr>
-      </thead>
-      <tbody>
-      </tbody>
-    </table>
-    <div class='scope-block'>
-      <div class='scope-header'>Scope: block_0</div>
-      <table class='symbol-table-content'>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Type</th>
-            <th>Kind</th>
-            <th>Line</th>
-          </tr>
-        </thead>
-        <tbody>
         </tbody>
       </table>
     </div>

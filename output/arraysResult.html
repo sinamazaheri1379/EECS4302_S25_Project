@@ -1,0 +1,1624 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0'>
+<title>Type Checking Report - test/arrays.tc</title>
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        background: #f8f9fa;
+    }
+
+    header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        font-weight: 700;
+    }
+
+    h2 {
+        font-size: 1.8rem;
+        color: #2d3748;
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 3px solid #e2e8f0;
+    }
+
+    .header-info {
+        display: flex;
+        gap: 2rem;
+        font-size: 1rem;
+        opacity: 0.95;
+    }
+
+    .info-item strong {
+        font-weight: 600;
+    }
+
+    section {
+        max-width: 1200px;
+        margin: 2rem auto;
+        padding: 2rem;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+    }
+
+    .success-box {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        padding: 2rem;
+        background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+        border-radius: 8px;
+        color: #0f5132;
+    }
+
+    .success-icon {
+        font-size: 3rem;
+        font-weight: bold;
+    }
+
+    .success-text {
+        font-size: 1.5rem;
+        font-weight: 600;
+    }
+
+    .error-summary {
+        background: #fff5f5;
+        padding: 2rem;
+        border-radius: 8px;
+        border: 1px solid #feb2b2;
+    }
+
+    .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .stat-item {
+        text-align: center;
+        padding: 1rem;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .stat-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #e53e3e;
+    }
+
+    .stat-label {
+        font-size: 0.9rem;
+        color: #718096;
+        margin-top: 0.5rem;
+    }
+
+    .error-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    .error-group {
+        background: #fef5e7;
+        border: 1px solid #fdeaa8;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .error-line-header {
+        background: #fdc665;
+        color: #7c2d12;
+        padding: 0.75rem 1rem;
+        font-weight: 600;
+    }
+
+    .error-item {
+        padding: 1rem;
+        border-bottom: 1px solid #fdeaa8;
+    }
+
+    .error-item:last-child {
+        border-bottom: none;
+    }
+
+    .error-details {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .error-type {
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .error-type-mismatch {
+        background: #fed7d7;
+        color: #9b2c2c;
+    }
+
+    .error-undefined {
+        background: #e9d8fd;
+        color: #553c9a;
+    }
+
+    .error-redefinition {
+        background: #feebc8;
+        color: #92400e;
+    }
+
+    .error-access {
+        background: #c6f6d5;
+        color: #22543d;
+    }
+
+    .error-other {
+        background: #e2e8f0;
+        color: #2d3748;
+    }
+
+    .error-message {
+        color: #2d3748;
+        font-size: 1rem;
+    }
+
+    .error-suggestion {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        background: #f0fff4;
+        border-left: 3px solid #48bb78;
+        color: #22543d;
+        font-size: 0.9rem;
+    }
+
+    .suggestion-icon {
+        font-size: 1.2rem;
+    }
+
+    .code-context {
+        margin-top: 0.75rem;
+        padding: 0.75rem;
+        background: #2d3748;
+        border-radius: 6px;
+        overflow-x: auto;
+    }
+
+    .code-context code {
+        color: #e2e8f0;
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 0.9rem;
+    }
+
+    .code-container {
+        display: flex;
+        background: #2d3748;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .line-numbers {
+        background: #1a202c;
+        color: #718096;
+        padding: 1rem 0.5rem;
+        text-align: right;
+        user-select: none;
+        border-right: 1px solid #4a5568;
+    }
+
+    .line-numbers code {
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+
+    .code-content {
+        flex: 1;
+        padding: 1rem;
+        overflow-x: auto;
+    }
+
+    .code-content code {
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 0.9rem;
+        line-height: 1.5;
+        color: #e2e8f0;
+    }
+
+    .error-line {
+        background: rgba(245, 101, 101, 0.2);
+        display: inline-block;
+        width: 100%;
+    }
+
+    .scope-block {
+        margin-bottom: 1rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .scope-header {
+        background: #4299e1;
+        color: white;
+        padding: 0.75rem 1rem;
+        font-weight: 600;
+    }
+
+    .symbol-table-content {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .symbol-table-content th {
+        background: #edf2f7;
+        padding: 0.75rem;
+        text-align: left;
+        font-weight: 600;
+        color: #2d3748;
+        border-bottom: 2px solid #cbd5e0;
+    }
+
+    .symbol-table-content td {
+        padding: 0.75rem;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .symbol-table-content tr:hover {
+        background: #f7fafc;
+    }
+
+    .scope-block .scope-block {
+        margin: 1rem;
+    }
+
+    footer {
+        text-align: center;
+        padding: 2rem;
+        color: #718096;
+        font-size: 0.9rem;
+    }
+
+    @media (max-width: 768px) {
+        section {
+            margin: 1rem;
+            padding: 1rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+        }
+
+        .header-info {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .stat-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .code-container {
+            font-size: 0.8rem;
+        }
+    }
+</style>
+<script>
+    // Add interactive features
+    document.addEventListener('DOMContentLoaded', function() {
+        // Smooth scrolling for error navigation
+        const errorItems = document.querySelectorAll('.error-item');
+        errorItems.forEach(item => {
+            item.style.cursor = 'pointer';
+            item.addEventListener('click', function() {
+                const lineMatch = this.closest('.error-group').querySelector('.error-line-header').textContent.match(/Line (\d+)/);
+                if (lineMatch) {
+                    const lineNum = lineMatch[1];
+                    const lineElement = document.getElementById('line-' + lineNum);
+                    if (lineElement) {
+                        lineElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        lineElement.style.animation = 'highlight 2s ease-in-out';
+                    }
+                }
+            });
+        });
+    });
+
+    // CSS animation
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes highlight {
+            0% { background-color: rgba(245, 101, 101, 0.2); }
+            50% { background-color: rgba(245, 101, 101, 0.5); }
+            100% { background-color: rgba(245, 101, 101, 0.2); }
+        }
+    `;
+    document.head.appendChild(style);
+</script>
+</head>
+<body>
+<header>
+<h1>Type Checking Report</h1>
+<div class='header-info'>
+<div class='info-item'><strong>File:</strong> test/arrays.tc</div>
+<div class='info-item'><strong>Generated:</strong> 2025-08-04 22:57:51</div>
+</div>
+</header>
+<section class='summary'>
+<h2>Summary</h2>
+<div class='error-summary'>
+<div class='stat-grid'>
+<div class='stat-item'>
+<div class='stat-value'>32</div>
+<div class='stat-label'>Total Errors</div>
+</div>
+<div class='stat-item'>
+<div class='stat-value'>10</div>
+<div class='stat-label'>Undefined variable</div>
+</div>
+<div class='stat-item'>
+<div class='stat-value'>22</div>
+<div class='stat-label'>Type mismatch</div>
+</div>
+</div>
+</div>
+</section>
+<section class='errors'>
+<h2>Error Details</h2>
+<div class='error-list'>
+<div class='error-group'>
+<div class='error-line-header'>Line 64</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Array access on non-array type</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>     63 |     matrix[1][1] = 5;
+&gt;&gt;   64 |     matrix[2][2] = 9;
+     65 |     
+</code></pre>
+</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Array access on non-array type</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>     63 |     matrix[1][1] = 5;
+&gt;&gt;   64 |     matrix[2][2] = 9;
+     65 |     
+</code></pre>
+</div>
+</div>
+<div class='error-group'>
+<div class='error-line-header'>Line 67</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Cannot initialize int[] with int</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>     66 |     // Test passing arrays to functions
+&gt;&gt;   67 |     int[] squares = createArray(5);
+     68 |     int total = sumArray(squares);
+</code></pre>
+</div>
+</div>
+<div class='error-group'>
+<div class='error-line-header'>Line 38</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Array access on non-array type</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>     37 |     // Array element access
+&gt;&gt;   38 |     localArray[0] = 10;
+     39 |     localArray[1] = 20;
+</code></pre>
+</div>
+</div>
+<div class='error-group'>
+<div class='error-line-header'>Line 39</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Array access on non-array type</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>     38 |     localArray[0] = 10;
+&gt;&gt;   39 |     localArray[1] = 20;
+     40 |     int firstElement = localArray[0];
+</code></pre>
+</div>
+</div>
+<div class='error-group'>
+<div class='error-line-header'>Line 40</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Cannot initialize int with &lt;error&gt;</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>     39 |     localArray[1] = 20;
+&gt;&gt;   40 |     int firstElement = localArray[0];
+     41 |     
+</code></pre>
+</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Cannot index non-array type int</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>     39 |     localArray[1] = 20;
+&gt;&gt;   40 |     int firstElement = localArray[0];
+     41 |     
+</code></pre>
+</div>
+</div>
+<div class='error-group'>
+<div class='error-line-header'>Line 10</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Cannot initialize int[][] with int</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>      9 | // Multi-dimensional arrays
+&gt;&gt;   10 | int[][] matrix = new int[3][3];
+     11 | string[][] stringMatrix = {{&quot;a&quot;, &quot;b&quot;}, {&quot;c&quot;, &quot;d&quot;}};
+</code></pre>
+</div>
+</div>
+<div class='error-group'>
+<div class='error-line-header'>Line 44</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Array access on non-array type</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>     43 |     int index = 2;
+&gt;&gt;   44 |     localArray[index] = 30;  // OK
+     45 |     
+</code></pre>
+</div>
+</div>
+<div class='error-group'>
+<div class='error-line-header'>Line 79</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Array access on non-array type</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>     78 |     float[] floatArr = new float[3];
+&gt;&gt;   79 |     floatArr[0] = 1;      // int to float promotion - OK
+     80 |     floatArr[1] = 2.5;    // OK
+</code></pre>
+</div>
+</div>
+<div class='error-group'>
+<div class='error-line-header'>Line 80</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Array access on non-array type</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>     79 |     floatArr[0] = 1;      // int to float promotion - OK
+&gt;&gt;   80 |     floatArr[1] = 2.5;    // OK
+     81 |     // floatArr[2] = &quot;3.0&quot;;  // ERROR: Cannot assign string to float
+</code></pre>
+</div>
+</div>
+<div class='error-group'>
+<div class='error-line-header'>Line 17</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Array access on non-array type</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>     16 |     for (int i = 0; i &lt; size; i++) {
+&gt;&gt;   17 |         result[i] = i * i;
+     18 |     }
+</code></pre>
+</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-undefined'>Undefined variable</span>
+<span class='error-message'>Variable &#39;i&#39; is not defined</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Check variable spelling or ensure it&#39;s declared before use</span>
+</div>
+<pre class='code-context'><code>     16 |     for (int i = 0; i &lt; size; i++) {
+&gt;&gt;   17 |         result[i] = i * i;
+     18 |     }
+</code></pre>
+</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-undefined'>Undefined variable</span>
+<span class='error-message'>Variable &#39;i&#39; is not defined</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Check variable spelling or ensure it&#39;s declared before use</span>
+</div>
+<pre class='code-context'><code>     16 |     for (int i = 0; i &lt; size; i++) {
+&gt;&gt;   17 |         result[i] = i * i;
+     18 |     }
+</code></pre>
+</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-undefined'>Undefined variable</span>
+<span class='error-message'>Variable &#39;i&#39; is not defined</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Check variable spelling or ensure it&#39;s declared before use</span>
+</div>
+<pre class='code-context'><code>     16 |     for (int i = 0; i &lt; size; i++) {
+&gt;&gt;   17 |         result[i] = i * i;
+     18 |     }
+</code></pre>
+</div>
+</div>
+<div class='error-group'>
+<div class='error-line-header'>Line 88</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Cannot initialize int[][] with int</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>     87 |     int[][] matrixB = {{5, 6}, {7, 8}};
+&gt;&gt;   88 |     int[][] result = new int[2][2];
+     89 |     
+</code></pre>
+</div>
+</div>
+<div class='error-group'>
+<div class='error-line-header'>Line 25</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>For-each requires array type, found int</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>     24 |     int sum = 0;
+&gt;&gt;   25 |     for (int val : arr) {
+     26 |         sum = sum + val;
+</code></pre>
+</div>
+</div>
+<div class='error-group'>
+<div class='error-line-header'>Line 58</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Cannot initialize int[] with int</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>     57 |     int[] arr1 = {1, 2, 3};
+&gt;&gt;   58 |     int[] arr2 = arr1;  // OK - reference assignment
+     59 |     arr2[0] = 100;  // Modifies both arr1 and arr2
+</code></pre>
+</div>
+</div>
+<div class='error-group'>
+<div class='error-line-header'>Line 26</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-undefined'>Undefined variable</span>
+<span class='error-message'>Variable &#39;val&#39; is not defined</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Check variable spelling or ensure it&#39;s declared before use</span>
+</div>
+<pre class='code-context'><code>     25 |     for (int val : arr) {
+&gt;&gt;   26 |         sum = sum + val;
+     27 |     }
+</code></pre>
+</div>
+</div>
+<div class='error-group'>
+<div class='error-line-header'>Line 59</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Array access on non-array type</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>     58 |     int[] arr2 = arr1;  // OK - reference assignment
+&gt;&gt;   59 |     arr2[0] = 100;  // Modifies both arr1 and arr2
+     60 |     
+</code></pre>
+</div>
+</div>
+<div class='error-group'>
+<div class='error-line-header'>Line 93</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Array access on non-array type</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>     92 |         for (int j = 0; j &lt; 2; j++) {
+&gt;&gt;   93 |             result[i][j] = matrixA[i][j] + matrixB[i][j];
+     94 |         }
+</code></pre>
+</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Array access on non-array type</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>     92 |         for (int j = 0; j &lt; 2; j++) {
+&gt;&gt;   93 |             result[i][j] = matrixA[i][j] + matrixB[i][j];
+     94 |         }
+</code></pre>
+</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-undefined'>Undefined variable</span>
+<span class='error-message'>Variable &#39;i&#39; is not defined</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Check variable spelling or ensure it&#39;s declared before use</span>
+</div>
+<pre class='code-context'><code>     92 |         for (int j = 0; j &lt; 2; j++) {
+&gt;&gt;   93 |             result[i][j] = matrixA[i][j] + matrixB[i][j];
+     94 |         }
+</code></pre>
+</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-undefined'>Undefined variable</span>
+<span class='error-message'>Variable &#39;j&#39; is not defined</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Check variable spelling or ensure it&#39;s declared before use</span>
+</div>
+<pre class='code-context'><code>     92 |         for (int j = 0; j &lt; 2; j++) {
+&gt;&gt;   93 |             result[i][j] = matrixA[i][j] + matrixB[i][j];
+     94 |         }
+</code></pre>
+</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-undefined'>Undefined variable</span>
+<span class='error-message'>Variable &#39;i&#39; is not defined</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Check variable spelling or ensure it&#39;s declared before use</span>
+</div>
+<pre class='code-context'><code>     92 |         for (int j = 0; j &lt; 2; j++) {
+&gt;&gt;   93 |             result[i][j] = matrixA[i][j] + matrixB[i][j];
+     94 |         }
+</code></pre>
+</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-undefined'>Undefined variable</span>
+<span class='error-message'>Variable &#39;j&#39; is not defined</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Check variable spelling or ensure it&#39;s declared before use</span>
+</div>
+<pre class='code-context'><code>     92 |         for (int j = 0; j &lt; 2; j++) {
+&gt;&gt;   93 |             result[i][j] = matrixA[i][j] + matrixB[i][j];
+     94 |         }
+</code></pre>
+</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-undefined'>Undefined variable</span>
+<span class='error-message'>Variable &#39;i&#39; is not defined</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Check variable spelling or ensure it&#39;s declared before use</span>
+</div>
+<pre class='code-context'><code>     92 |         for (int j = 0; j &lt; 2; j++) {
+&gt;&gt;   93 |             result[i][j] = matrixA[i][j] + matrixB[i][j];
+     94 |         }
+</code></pre>
+</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-undefined'>Undefined variable</span>
+<span class='error-message'>Variable &#39;j&#39; is not defined</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Check variable spelling or ensure it&#39;s declared before use</span>
+</div>
+<pre class='code-context'><code>     92 |         for (int j = 0; j &lt; 2; j++) {
+&gt;&gt;   93 |             result[i][j] = matrixA[i][j] + matrixB[i][j];
+     94 |         }
+</code></pre>
+</div>
+</div>
+<div class='error-group'>
+<div class='error-line-header'>Line 62</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Array access on non-array type</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>     61 |     // Test multi-dimensional array access
+&gt;&gt;   62 |     matrix[0][0] = 1;
+     63 |     matrix[1][1] = 5;
+</code></pre>
+</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Array access on non-array type</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>     61 |     // Test multi-dimensional array access
+&gt;&gt;   62 |     matrix[0][0] = 1;
+     63 |     matrix[1][1] = 5;
+</code></pre>
+</div>
+</div>
+<div class='error-group'>
+<div class='error-line-header'>Line 63</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Array access on non-array type</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>     62 |     matrix[0][0] = 1;
+&gt;&gt;   63 |     matrix[1][1] = 5;
+     64 |     matrix[2][2] = 9;
+</code></pre>
+</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Array access on non-array type</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>     62 |     matrix[0][0] = 1;
+&gt;&gt;   63 |     matrix[1][1] = 5;
+     64 |     matrix[2][2] = 9;
+</code></pre>
+</div>
+</div>
+</div>
+</section>
+<section class='source-code'>
+<h2>Source Code</h2>
+<div class='code-container'>
+<pre class='line-numbers'><code>   1
+   2
+   3
+   4
+   5
+   6
+   7
+   8
+   9
+  10
+  11
+  12
+  13
+  14
+  15
+  16
+  17
+  18
+  19
+  20
+  21
+  22
+  23
+  24
+  25
+  26
+  27
+  28
+  29
+  30
+  31
+  32
+  33
+  34
+  35
+  36
+  37
+  38
+  39
+  40
+  41
+  42
+  43
+  44
+  45
+  46
+  47
+  48
+  49
+  50
+  51
+  52
+  53
+  54
+  55
+  56
+  57
+  58
+  59
+  60
+  61
+  62
+  63
+  64
+  65
+  66
+  67
+  68
+  69
+  70
+  71
+  72
+  73
+  74
+  75
+  76
+  77
+  78
+  79
+  80
+  81
+  82
+  83
+  84
+  85
+  86
+  87
+  88
+  89
+  90
+  91
+  92
+  93
+  94
+  95
+  96
+  97
+  98
+  99
+ 100
+ 101
+ 102
+ 103
+ 104
+ 105
+ 106
+ 107
+</code></pre>
+<pre class='code-content'><code><span id='line-1'>// test-arrays.tc</span>
+<span id='line-2'>// Tests array declarations, operations, and type checking</span>
+<span id='line-3'></span>
+<span id='line-4'>// Global array declarations</span>
+<span id='line-5'>int[] globalIntArray = {1, 2, 3, 4, 5};</span>
+<span id='line-6'>string[] globalStringArray = {&quot;apple&quot;, &quot;banana&quot;, &quot;cherry&quot;};</span>
+<span id='line-7'>float[] globalFloatArray = new float[10];</span>
+<span id='line-8'></span>
+<span id='line-9'>// Multi-dimensional arrays</span>
+<span class='error-line' id='line-10'>int[][] matrix = new int[3][3];</span>
+<span id='line-11'>string[][] stringMatrix = {{&quot;a&quot;, &quot;b&quot;}, {&quot;c&quot;, &quot;d&quot;}};</span>
+<span id='line-12'></span>
+<span id='line-13'>// Function that returns an array</span>
+<span id='line-14'>int[] createArray(int size) {</span>
+<span id='line-15'>    int[] result = new int[size];</span>
+<span id='line-16'>    for (int i = 0; i &lt; size; i++) {</span>
+<span class='error-line' id='line-17'>        result[i] = i * i;</span>
+<span id='line-18'>    }</span>
+<span id='line-19'>    return result;</span>
+<span id='line-20'>}</span>
+<span id='line-21'></span>
+<span id='line-22'>// Function with array parameter</span>
+<span id='line-23'>int sumArray(int[] arr) {</span>
+<span id='line-24'>    int sum = 0;</span>
+<span class='error-line' id='line-25'>    for (int val : arr) {</span>
+<span class='error-line' id='line-26'>        sum = sum + val;</span>
+<span id='line-27'>    }</span>
+<span id='line-28'>    return sum;</span>
+<span id='line-29'>}</span>
+<span id='line-30'></span>
+<span id='line-31'>void testArrayOperations() {</span>
+<span id='line-32'>    // Local array declarations</span>
+<span id='line-33'>    int[] localArray = new int[5];</span>
+<span id='line-34'>    boolean[] flags = {true, false, true, true};</span>
+<span id='line-35'>    char[] letters = {&#39;a&#39;, &#39;b&#39;, &#39;c&#39;, &#39;d&#39;, &#39;e&#39;};</span>
+<span id='line-36'>    </span>
+<span id='line-37'>    // Array element access</span>
+<span class='error-line' id='line-38'>    localArray[0] = 10;</span>
+<span class='error-line' id='line-39'>    localArray[1] = 20;</span>
+<span class='error-line' id='line-40'>    int firstElement = localArray[0];</span>
+<span id='line-41'>    </span>
+<span id='line-42'>    // Test array index types</span>
+<span id='line-43'>    int index = 2;</span>
+<span class='error-line' id='line-44'>    localArray[index] = 30;  // OK</span>
+<span id='line-45'>    </span>
+<span id='line-46'>    // Test invalid array index type (should generate error)</span>
+<span id='line-47'>    // string strIndex = &quot;2&quot;;</span>
+<span id='line-48'>    // localArray[strIndex] = 40;  // ERROR: Array index must be int</span>
+<span id='line-49'>    </span>
+<span id='line-50'>    // Test array bounds (runtime check, but could warn)</span>
+<span id='line-51'>    // localArray[10] = 50;  // WARNING: Possible array index out of bounds</span>
+<span id='line-52'>    </span>
+<span id='line-53'>    // Test array type mismatch</span>
+<span id='line-54'>    // int[] intArr = {&quot;one&quot;, &quot;two&quot;, &quot;three&quot;};  // ERROR: Cannot initialize int[] with string values</span>
+<span id='line-55'>    </span>
+<span id='line-56'>    // Test array assignment compatibility</span>
+<span id='line-57'>    int[] arr1 = {1, 2, 3};</span>
+<span class='error-line' id='line-58'>    int[] arr2 = arr1;  // OK - reference assignment</span>
+<span class='error-line' id='line-59'>    arr2[0] = 100;  // Modifies both arr1 and arr2</span>
+<span id='line-60'>    </span>
+<span id='line-61'>    // Test multi-dimensional array access</span>
+<span class='error-line' id='line-62'>    matrix[0][0] = 1;</span>
+<span class='error-line' id='line-63'>    matrix[1][1] = 5;</span>
+<span class='error-line' id='line-64'>    matrix[2][2] = 9;</span>
+<span id='line-65'>    </span>
+<span id='line-66'>    // Test passing arrays to functions</span>
+<span class='error-line' id='line-67'>    int[] squares = createArray(5);</span>
+<span id='line-68'>    int total = sumArray(squares);</span>
+<span id='line-69'>    </span>
+<span id='line-70'>    // Test array length property (if supported)</span>
+<span id='line-71'>    // int arrayLength = localArray.length;  // Depends on implementation</span>
+<span id='line-72'>    </span>
+<span id='line-73'>    // Test null array handling</span>
+<span id='line-74'>    int[] nullArray = null;</span>
+<span id='line-75'>    // nullArray[0] = 10;  // ERROR: Null pointer dereference</span>
+<span id='line-76'>    </span>
+<span id='line-77'>    // Test array element type compatibility</span>
+<span id='line-78'>    float[] floatArr = new float[3];</span>
+<span class='error-line' id='line-79'>    floatArr[0] = 1;      // int to float promotion - OK</span>
+<span class='error-line' id='line-80'>    floatArr[1] = 2.5;    // OK</span>
+<span id='line-81'>    // floatArr[2] = &quot;3.0&quot;;  // ERROR: Cannot assign string to float</span>
+<span id='line-82'>}</span>
+<span id='line-83'></span>
+<span id='line-84'>// Function to test 2D array operations</span>
+<span id='line-85'>void matrixOperations() {</span>
+<span id='line-86'>    int[][] matrixA = {{1, 2}, {3, 4}};</span>
+<span id='line-87'>    int[][] matrixB = {{5, 6}, {7, 8}};</span>
+<span class='error-line' id='line-88'>    int[][] result = new int[2][2];</span>
+<span id='line-89'>    </span>
+<span id='line-90'>    // Matrix addition</span>
+<span id='line-91'>    for (int i = 0; i &lt; 2; i++) {</span>
+<span id='line-92'>        for (int j = 0; j &lt; 2; j++) {</span>
+<span class='error-line' id='line-93'>            result[i][j] = matrixA[i][j] + matrixB[i][j];</span>
+<span id='line-94'>        }</span>
+<span id='line-95'>    }</span>
+<span id='line-96'>}</span>
+<span id='line-97'></span>
+<span id='line-98'>int main() {</span>
+<span id='line-99'>    testArrayOperations();</span>
+<span id='line-100'>    matrixOperations();</span>
+<span id='line-101'>    </span>
+<span id='line-102'>    // Test array initialization</span>
+<span id='line-103'>    int[] primes = {2, 3, 5, 7, 11, 13};</span>
+<span id='line-104'>    int sum = sumArray(primes);</span>
+<span id='line-105'>    </span>
+<span id='line-106'>    return 0;</span>
+<span id='line-107'>}</span>
+</code></pre>
+</div>
+</section>
+<section class='symbol-table'>
+<h2>Symbol Table</h2>
+<div class='table-container'>
+<div class='scope-block'>
+  <div class='scope-header'>Scope: global</div>
+  <table class='symbol-table-content'>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Kind</th>
+        <th>Line</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>print</td>
+        <td>(string) -&gt; void</td>
+        <td>Function</td>
+        <td>0</td>
+      </tr>
+      <tr>
+        <td>println</td>
+        <td>(string) -&gt; void</td>
+        <td>Function</td>
+        <td>0</td>
+      </tr>
+      <tr>
+        <td>globalIntArray</td>
+        <td>int</td>
+        <td>Variable</td>
+        <td>5</td>
+      </tr>
+      <tr>
+        <td>globalStringArray</td>
+        <td>string</td>
+        <td>Variable</td>
+        <td>6</td>
+      </tr>
+      <tr>
+        <td>globalFloatArray</td>
+        <td>float</td>
+        <td>Variable</td>
+        <td>7</td>
+      </tr>
+      <tr>
+        <td>matrix</td>
+        <td>int</td>
+        <td>Variable</td>
+        <td>10</td>
+      </tr>
+      <tr>
+        <td>stringMatrix</td>
+        <td>string</td>
+        <td>Variable</td>
+        <td>11</td>
+      </tr>
+      <tr>
+        <td>createArray</td>
+        <td>(int) -&gt; int</td>
+        <td>Function</td>
+        <td>14</td>
+      </tr>
+      <tr>
+        <td>sumArray</td>
+        <td>(int) -&gt; int</td>
+        <td>Function</td>
+        <td>23</td>
+      </tr>
+      <tr>
+        <td>testArrayOperations</td>
+        <td>() -&gt; void</td>
+        <td>Function</td>
+        <td>31</td>
+      </tr>
+      <tr>
+        <td>matrixOperations</td>
+        <td>() -&gt; void</td>
+        <td>Function</td>
+        <td>85</td>
+      </tr>
+      <tr>
+        <td>main</td>
+        <td>() -&gt; int</td>
+        <td>Function</td>
+        <td>98</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class='scope-block'>
+    <div class='scope-header'>Scope: createArray_method</div>
+    <table class='symbol-table-content'>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Kind</th>
+          <th>Line</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>size</td>
+          <td>int</td>
+          <td>Variable</td>
+          <td>14</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: block_0</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>result</td>
+            <td>int</td>
+            <td>Variable</td>
+            <td>15</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_0</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_1</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>i</td>
+              <td>int</td>
+              <td>Variable</td>
+              <td>0</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class='scope-block'>
+    <div class='scope-header'>Scope: sumArray_method</div>
+    <table class='symbol-table-content'>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Kind</th>
+          <th>Line</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>arr</td>
+          <td>int</td>
+          <td>Variable</td>
+          <td>23</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: block_0</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>sum</td>
+            <td>int</td>
+            <td>Variable</td>
+            <td>24</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_0</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_1</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class='scope-block'>
+    <div class='scope-header'>Scope: testArrayOperations_method</div>
+    <table class='symbol-table-content'>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Kind</th>
+          <th>Line</th>
+        </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: block_0</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>localArray</td>
+            <td>int</td>
+            <td>Variable</td>
+            <td>33</td>
+          </tr>
+          <tr>
+            <td>flags</td>
+            <td>boolean</td>
+            <td>Variable</td>
+            <td>34</td>
+          </tr>
+          <tr>
+            <td>letters</td>
+            <td>char</td>
+            <td>Variable</td>
+            <td>35</td>
+          </tr>
+          <tr>
+            <td>firstElement</td>
+            <td>int</td>
+            <td>Variable</td>
+            <td>40</td>
+          </tr>
+          <tr>
+            <td>index</td>
+            <td>int</td>
+            <td>Variable</td>
+            <td>43</td>
+          </tr>
+          <tr>
+            <td>arr1</td>
+            <td>int</td>
+            <td>Variable</td>
+            <td>57</td>
+          </tr>
+          <tr>
+            <td>arr2</td>
+            <td>int</td>
+            <td>Variable</td>
+            <td>58</td>
+          </tr>
+          <tr>
+            <td>squares</td>
+            <td>int</td>
+            <td>Variable</td>
+            <td>67</td>
+          </tr>
+          <tr>
+            <td>total</td>
+            <td>int</td>
+            <td>Variable</td>
+            <td>68</td>
+          </tr>
+          <tr>
+            <td>nullArray</td>
+            <td>int</td>
+            <td>Variable</td>
+            <td>74</td>
+          </tr>
+          <tr>
+            <td>floatArr</td>
+            <td>float</td>
+            <td>Variable</td>
+            <td>78</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class='scope-block'>
+    <div class='scope-header'>Scope: matrixOperations_method</div>
+    <table class='symbol-table-content'>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Kind</th>
+          <th>Line</th>
+        </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: block_0</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>matrixA</td>
+            <td>int</td>
+            <td>Variable</td>
+            <td>86</td>
+          </tr>
+          <tr>
+            <td>matrixB</td>
+            <td>int</td>
+            <td>Variable</td>
+            <td>87</td>
+          </tr>
+          <tr>
+            <td>result</td>
+            <td>int</td>
+            <td>Variable</td>
+            <td>88</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_0</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+        <div class='scope-block'>
+          <div class='scope-header'>Scope: block_0</div>
+          <table class='symbol-table-content'>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Kind</th>
+                <th>Line</th>
+              </tr>
+            </thead>
+            <tbody>
+            </tbody>
+          </table>
+        </div>
+        <div class='scope-block'>
+          <div class='scope-header'>Scope: block_1</div>
+          <table class='symbol-table-content'>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Kind</th>
+                <th>Line</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>j</td>
+                <td>int</td>
+                <td>Variable</td>
+                <td>0</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_1</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>i</td>
+              <td>int</td>
+              <td>Variable</td>
+              <td>0</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class='scope-block'>
+    <div class='scope-header'>Scope: main_method</div>
+    <table class='symbol-table-content'>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Kind</th>
+          <th>Line</th>
+        </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: block_0</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>primes</td>
+            <td>int</td>
+            <td>Variable</td>
+            <td>103</td>
+          </tr>
+          <tr>
+            <td>sum</td>
+            <td>int</td>
+            <td>Variable</td>
+            <td>104</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</div>
+</section>
+<footer>
+<p>Generated by EECS4302 Type Checker Compiler</p>
+</footer>
+</body>
+</html>

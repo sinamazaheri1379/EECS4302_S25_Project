@@ -53,8 +53,11 @@ public class MainCompiler {
             
             // Second pass: Type checking
             System.out.println("Performing type checking...");
-            TypeChecker typeChecker = new TypeChecker(symbolBuilder.getGlobalScope());
-            typeChecker.visit(tree);
+            TypeChecker typeChecker = new TypeChecker(
+            	    symbolBuilder.getGlobalScope(), 
+            	    symbolBuilder.getNodeScopes()
+            	);
+            	typeChecker.visit(tree);
             
             // Combine errors
             List<SemanticError> allErrors = new ArrayList<>();
