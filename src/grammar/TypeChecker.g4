@@ -178,6 +178,8 @@ emptyStmt
 
 lvalue
     : ID                        # VarLvalue
+    | THIS                      # ThisLvalue
+    | SUPER                     # SuperLvalue
     | lvalue '.' ID            # FieldLvalue  
     | lvalue '[' expr ']'      # ArrayLvalue
     ;
@@ -213,9 +215,11 @@ expr
     | expr '.' ID                                      # FieldAccess
     | expr '.' ID '(' argList? ')'                    # MethodCall
     | expr '[' expr ']'                                # ArrayAccess
-    | NEW type '[' expr ']' ('[' ']')*                                    # NewArrayExpr
+    | NEW type '[' expr ']' ('[' expr ']')* ('[' ']')*   # NewArrayExpr
     | NEW type arrayInitializer                        # NewArrayWithInit
     | NEW classType '(' argList? ')'                   # NewExpr
+    | classType '.' ID                     # StaticFieldAccess
+    | classType '.' ID '(' argList? ')'    # StaticMethodCall
     | '(' type ')' expr                                # CastExpr
     | expr INSTANCEOF classType                        # InstanceOfExpr
     | expr op=(INC | DEC)                              # PostIncDec

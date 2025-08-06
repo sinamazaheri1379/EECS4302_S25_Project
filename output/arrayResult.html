@@ -367,533 +367,14 @@
 <h1>Type Checking Report</h1>
 <div class='header-info'>
 <div class='info-item'><strong>File:</strong> test/arrays.tc</div>
-<div class='info-item'><strong>Generated:</strong> 2025-08-04 22:57:51</div>
+<div class='info-item'><strong>Generated:</strong> 2025-08-05 20:15:25</div>
 </div>
 </header>
 <section class='summary'>
 <h2>Summary</h2>
-<div class='error-summary'>
-<div class='stat-grid'>
-<div class='stat-item'>
-<div class='stat-value'>32</div>
-<div class='stat-label'>Total Errors</div>
-</div>
-<div class='stat-item'>
-<div class='stat-value'>10</div>
-<div class='stat-label'>Undefined variable</div>
-</div>
-<div class='stat-item'>
-<div class='stat-value'>22</div>
-<div class='stat-label'>Type mismatch</div>
-</div>
-</div>
-</div>
-</section>
-<section class='errors'>
-<h2>Error Details</h2>
-<div class='error-list'>
-<div class='error-group'>
-<div class='error-line-header'>Line 64</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-type-mismatch'>Type mismatch</span>
-<span class='error-message'>Array access on non-array type</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Ensure types are compatible or use explicit type conversion</span>
-</div>
-<pre class='code-context'><code>     63 |     matrix[1][1] = 5;
-&gt;&gt;   64 |     matrix[2][2] = 9;
-     65 |     
-</code></pre>
-</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-type-mismatch'>Type mismatch</span>
-<span class='error-message'>Array access on non-array type</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Ensure types are compatible or use explicit type conversion</span>
-</div>
-<pre class='code-context'><code>     63 |     matrix[1][1] = 5;
-&gt;&gt;   64 |     matrix[2][2] = 9;
-     65 |     
-</code></pre>
-</div>
-</div>
-<div class='error-group'>
-<div class='error-line-header'>Line 67</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-type-mismatch'>Type mismatch</span>
-<span class='error-message'>Cannot initialize int[] with int</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Ensure types are compatible or use explicit type conversion</span>
-</div>
-<pre class='code-context'><code>     66 |     // Test passing arrays to functions
-&gt;&gt;   67 |     int[] squares = createArray(5);
-     68 |     int total = sumArray(squares);
-</code></pre>
-</div>
-</div>
-<div class='error-group'>
-<div class='error-line-header'>Line 38</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-type-mismatch'>Type mismatch</span>
-<span class='error-message'>Array access on non-array type</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Ensure types are compatible or use explicit type conversion</span>
-</div>
-<pre class='code-context'><code>     37 |     // Array element access
-&gt;&gt;   38 |     localArray[0] = 10;
-     39 |     localArray[1] = 20;
-</code></pre>
-</div>
-</div>
-<div class='error-group'>
-<div class='error-line-header'>Line 39</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-type-mismatch'>Type mismatch</span>
-<span class='error-message'>Array access on non-array type</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Ensure types are compatible or use explicit type conversion</span>
-</div>
-<pre class='code-context'><code>     38 |     localArray[0] = 10;
-&gt;&gt;   39 |     localArray[1] = 20;
-     40 |     int firstElement = localArray[0];
-</code></pre>
-</div>
-</div>
-<div class='error-group'>
-<div class='error-line-header'>Line 40</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-type-mismatch'>Type mismatch</span>
-<span class='error-message'>Cannot initialize int with &lt;error&gt;</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Ensure types are compatible or use explicit type conversion</span>
-</div>
-<pre class='code-context'><code>     39 |     localArray[1] = 20;
-&gt;&gt;   40 |     int firstElement = localArray[0];
-     41 |     
-</code></pre>
-</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-type-mismatch'>Type mismatch</span>
-<span class='error-message'>Cannot index non-array type int</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Ensure types are compatible or use explicit type conversion</span>
-</div>
-<pre class='code-context'><code>     39 |     localArray[1] = 20;
-&gt;&gt;   40 |     int firstElement = localArray[0];
-     41 |     
-</code></pre>
-</div>
-</div>
-<div class='error-group'>
-<div class='error-line-header'>Line 10</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-type-mismatch'>Type mismatch</span>
-<span class='error-message'>Cannot initialize int[][] with int</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Ensure types are compatible or use explicit type conversion</span>
-</div>
-<pre class='code-context'><code>      9 | // Multi-dimensional arrays
-&gt;&gt;   10 | int[][] matrix = new int[3][3];
-     11 | string[][] stringMatrix = {{&quot;a&quot;, &quot;b&quot;}, {&quot;c&quot;, &quot;d&quot;}};
-</code></pre>
-</div>
-</div>
-<div class='error-group'>
-<div class='error-line-header'>Line 44</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-type-mismatch'>Type mismatch</span>
-<span class='error-message'>Array access on non-array type</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Ensure types are compatible or use explicit type conversion</span>
-</div>
-<pre class='code-context'><code>     43 |     int index = 2;
-&gt;&gt;   44 |     localArray[index] = 30;  // OK
-     45 |     
-</code></pre>
-</div>
-</div>
-<div class='error-group'>
-<div class='error-line-header'>Line 79</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-type-mismatch'>Type mismatch</span>
-<span class='error-message'>Array access on non-array type</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Ensure types are compatible or use explicit type conversion</span>
-</div>
-<pre class='code-context'><code>     78 |     float[] floatArr = new float[3];
-&gt;&gt;   79 |     floatArr[0] = 1;      // int to float promotion - OK
-     80 |     floatArr[1] = 2.5;    // OK
-</code></pre>
-</div>
-</div>
-<div class='error-group'>
-<div class='error-line-header'>Line 80</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-type-mismatch'>Type mismatch</span>
-<span class='error-message'>Array access on non-array type</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Ensure types are compatible or use explicit type conversion</span>
-</div>
-<pre class='code-context'><code>     79 |     floatArr[0] = 1;      // int to float promotion - OK
-&gt;&gt;   80 |     floatArr[1] = 2.5;    // OK
-     81 |     // floatArr[2] = &quot;3.0&quot;;  // ERROR: Cannot assign string to float
-</code></pre>
-</div>
-</div>
-<div class='error-group'>
-<div class='error-line-header'>Line 17</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-type-mismatch'>Type mismatch</span>
-<span class='error-message'>Array access on non-array type</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Ensure types are compatible or use explicit type conversion</span>
-</div>
-<pre class='code-context'><code>     16 |     for (int i = 0; i &lt; size; i++) {
-&gt;&gt;   17 |         result[i] = i * i;
-     18 |     }
-</code></pre>
-</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-undefined'>Undefined variable</span>
-<span class='error-message'>Variable &#39;i&#39; is not defined</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Check variable spelling or ensure it&#39;s declared before use</span>
-</div>
-<pre class='code-context'><code>     16 |     for (int i = 0; i &lt; size; i++) {
-&gt;&gt;   17 |         result[i] = i * i;
-     18 |     }
-</code></pre>
-</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-undefined'>Undefined variable</span>
-<span class='error-message'>Variable &#39;i&#39; is not defined</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Check variable spelling or ensure it&#39;s declared before use</span>
-</div>
-<pre class='code-context'><code>     16 |     for (int i = 0; i &lt; size; i++) {
-&gt;&gt;   17 |         result[i] = i * i;
-     18 |     }
-</code></pre>
-</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-undefined'>Undefined variable</span>
-<span class='error-message'>Variable &#39;i&#39; is not defined</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Check variable spelling or ensure it&#39;s declared before use</span>
-</div>
-<pre class='code-context'><code>     16 |     for (int i = 0; i &lt; size; i++) {
-&gt;&gt;   17 |         result[i] = i * i;
-     18 |     }
-</code></pre>
-</div>
-</div>
-<div class='error-group'>
-<div class='error-line-header'>Line 88</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-type-mismatch'>Type mismatch</span>
-<span class='error-message'>Cannot initialize int[][] with int</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Ensure types are compatible or use explicit type conversion</span>
-</div>
-<pre class='code-context'><code>     87 |     int[][] matrixB = {{5, 6}, {7, 8}};
-&gt;&gt;   88 |     int[][] result = new int[2][2];
-     89 |     
-</code></pre>
-</div>
-</div>
-<div class='error-group'>
-<div class='error-line-header'>Line 25</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-type-mismatch'>Type mismatch</span>
-<span class='error-message'>For-each requires array type, found int</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Ensure types are compatible or use explicit type conversion</span>
-</div>
-<pre class='code-context'><code>     24 |     int sum = 0;
-&gt;&gt;   25 |     for (int val : arr) {
-     26 |         sum = sum + val;
-</code></pre>
-</div>
-</div>
-<div class='error-group'>
-<div class='error-line-header'>Line 58</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-type-mismatch'>Type mismatch</span>
-<span class='error-message'>Cannot initialize int[] with int</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Ensure types are compatible or use explicit type conversion</span>
-</div>
-<pre class='code-context'><code>     57 |     int[] arr1 = {1, 2, 3};
-&gt;&gt;   58 |     int[] arr2 = arr1;  // OK - reference assignment
-     59 |     arr2[0] = 100;  // Modifies both arr1 and arr2
-</code></pre>
-</div>
-</div>
-<div class='error-group'>
-<div class='error-line-header'>Line 26</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-undefined'>Undefined variable</span>
-<span class='error-message'>Variable &#39;val&#39; is not defined</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Check variable spelling or ensure it&#39;s declared before use</span>
-</div>
-<pre class='code-context'><code>     25 |     for (int val : arr) {
-&gt;&gt;   26 |         sum = sum + val;
-     27 |     }
-</code></pre>
-</div>
-</div>
-<div class='error-group'>
-<div class='error-line-header'>Line 59</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-type-mismatch'>Type mismatch</span>
-<span class='error-message'>Array access on non-array type</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Ensure types are compatible or use explicit type conversion</span>
-</div>
-<pre class='code-context'><code>     58 |     int[] arr2 = arr1;  // OK - reference assignment
-&gt;&gt;   59 |     arr2[0] = 100;  // Modifies both arr1 and arr2
-     60 |     
-</code></pre>
-</div>
-</div>
-<div class='error-group'>
-<div class='error-line-header'>Line 93</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-type-mismatch'>Type mismatch</span>
-<span class='error-message'>Array access on non-array type</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Ensure types are compatible or use explicit type conversion</span>
-</div>
-<pre class='code-context'><code>     92 |         for (int j = 0; j &lt; 2; j++) {
-&gt;&gt;   93 |             result[i][j] = matrixA[i][j] + matrixB[i][j];
-     94 |         }
-</code></pre>
-</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-type-mismatch'>Type mismatch</span>
-<span class='error-message'>Array access on non-array type</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Ensure types are compatible or use explicit type conversion</span>
-</div>
-<pre class='code-context'><code>     92 |         for (int j = 0; j &lt; 2; j++) {
-&gt;&gt;   93 |             result[i][j] = matrixA[i][j] + matrixB[i][j];
-     94 |         }
-</code></pre>
-</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-undefined'>Undefined variable</span>
-<span class='error-message'>Variable &#39;i&#39; is not defined</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Check variable spelling or ensure it&#39;s declared before use</span>
-</div>
-<pre class='code-context'><code>     92 |         for (int j = 0; j &lt; 2; j++) {
-&gt;&gt;   93 |             result[i][j] = matrixA[i][j] + matrixB[i][j];
-     94 |         }
-</code></pre>
-</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-undefined'>Undefined variable</span>
-<span class='error-message'>Variable &#39;j&#39; is not defined</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Check variable spelling or ensure it&#39;s declared before use</span>
-</div>
-<pre class='code-context'><code>     92 |         for (int j = 0; j &lt; 2; j++) {
-&gt;&gt;   93 |             result[i][j] = matrixA[i][j] + matrixB[i][j];
-     94 |         }
-</code></pre>
-</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-undefined'>Undefined variable</span>
-<span class='error-message'>Variable &#39;i&#39; is not defined</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Check variable spelling or ensure it&#39;s declared before use</span>
-</div>
-<pre class='code-context'><code>     92 |         for (int j = 0; j &lt; 2; j++) {
-&gt;&gt;   93 |             result[i][j] = matrixA[i][j] + matrixB[i][j];
-     94 |         }
-</code></pre>
-</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-undefined'>Undefined variable</span>
-<span class='error-message'>Variable &#39;j&#39; is not defined</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Check variable spelling or ensure it&#39;s declared before use</span>
-</div>
-<pre class='code-context'><code>     92 |         for (int j = 0; j &lt; 2; j++) {
-&gt;&gt;   93 |             result[i][j] = matrixA[i][j] + matrixB[i][j];
-     94 |         }
-</code></pre>
-</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-undefined'>Undefined variable</span>
-<span class='error-message'>Variable &#39;i&#39; is not defined</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Check variable spelling or ensure it&#39;s declared before use</span>
-</div>
-<pre class='code-context'><code>     92 |         for (int j = 0; j &lt; 2; j++) {
-&gt;&gt;   93 |             result[i][j] = matrixA[i][j] + matrixB[i][j];
-     94 |         }
-</code></pre>
-</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-undefined'>Undefined variable</span>
-<span class='error-message'>Variable &#39;j&#39; is not defined</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Check variable spelling or ensure it&#39;s declared before use</span>
-</div>
-<pre class='code-context'><code>     92 |         for (int j = 0; j &lt; 2; j++) {
-&gt;&gt;   93 |             result[i][j] = matrixA[i][j] + matrixB[i][j];
-     94 |         }
-</code></pre>
-</div>
-</div>
-<div class='error-group'>
-<div class='error-line-header'>Line 62</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-type-mismatch'>Type mismatch</span>
-<span class='error-message'>Array access on non-array type</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Ensure types are compatible or use explicit type conversion</span>
-</div>
-<pre class='code-context'><code>     61 |     // Test multi-dimensional array access
-&gt;&gt;   62 |     matrix[0][0] = 1;
-     63 |     matrix[1][1] = 5;
-</code></pre>
-</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-type-mismatch'>Type mismatch</span>
-<span class='error-message'>Array access on non-array type</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Ensure types are compatible or use explicit type conversion</span>
-</div>
-<pre class='code-context'><code>     61 |     // Test multi-dimensional array access
-&gt;&gt;   62 |     matrix[0][0] = 1;
-     63 |     matrix[1][1] = 5;
-</code></pre>
-</div>
-</div>
-<div class='error-group'>
-<div class='error-line-header'>Line 63</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-type-mismatch'>Type mismatch</span>
-<span class='error-message'>Array access on non-array type</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Ensure types are compatible or use explicit type conversion</span>
-</div>
-<pre class='code-context'><code>     62 |     matrix[0][0] = 1;
-&gt;&gt;   63 |     matrix[1][1] = 5;
-     64 |     matrix[2][2] = 9;
-</code></pre>
-</div>
-<div class='error-item'>
-<div class='error-details'>
-<span class='error-type error-type-mismatch'>Type mismatch</span>
-<span class='error-message'>Array access on non-array type</span>
-</div>
-<div class='error-suggestion'>
-<span class='suggestion-icon'>💡</span>
-<span>Ensure types are compatible or use explicit type conversion</span>
-</div>
-<pre class='code-context'><code>     62 |     matrix[0][0] = 1;
-&gt;&gt;   63 |     matrix[1][1] = 5;
-     64 |     matrix[2][2] = 9;
-</code></pre>
-</div>
-</div>
+<div class='success-box'>
+<div class='success-icon'>✓</div>
+<div class='success-text'>No type errors found!</div>
 </div>
 </section>
 <section class='source-code'>
@@ -1016,14 +497,14 @@
 <span id='line-7'>float[] globalFloatArray = new float[10];</span>
 <span id='line-8'></span>
 <span id='line-9'>// Multi-dimensional arrays</span>
-<span class='error-line' id='line-10'>int[][] matrix = new int[3][3];</span>
+<span id='line-10'>int[][] matrix = new int[3][3];</span>
 <span id='line-11'>string[][] stringMatrix = {{&quot;a&quot;, &quot;b&quot;}, {&quot;c&quot;, &quot;d&quot;}};</span>
 <span id='line-12'></span>
 <span id='line-13'>// Function that returns an array</span>
 <span id='line-14'>int[] createArray(int size) {</span>
 <span id='line-15'>    int[] result = new int[size];</span>
 <span id='line-16'>    for (int i = 0; i &lt; size; i++) {</span>
-<span class='error-line' id='line-17'>        result[i] = i * i;</span>
+<span id='line-17'>        result[i] = i * i;</span>
 <span id='line-18'>    }</span>
 <span id='line-19'>    return result;</span>
 <span id='line-20'>}</span>
@@ -1031,8 +512,8 @@
 <span id='line-22'>// Function with array parameter</span>
 <span id='line-23'>int sumArray(int[] arr) {</span>
 <span id='line-24'>    int sum = 0;</span>
-<span class='error-line' id='line-25'>    for (int val : arr) {</span>
-<span class='error-line' id='line-26'>        sum = sum + val;</span>
+<span id='line-25'>    for (int val : arr) {</span>
+<span id='line-26'>        sum = sum + val;</span>
 <span id='line-27'>    }</span>
 <span id='line-28'>    return sum;</span>
 <span id='line-29'>}</span>
@@ -1044,13 +525,13 @@
 <span id='line-35'>    char[] letters = {&#39;a&#39;, &#39;b&#39;, &#39;c&#39;, &#39;d&#39;, &#39;e&#39;};</span>
 <span id='line-36'>    </span>
 <span id='line-37'>    // Array element access</span>
-<span class='error-line' id='line-38'>    localArray[0] = 10;</span>
-<span class='error-line' id='line-39'>    localArray[1] = 20;</span>
-<span class='error-line' id='line-40'>    int firstElement = localArray[0];</span>
+<span id='line-38'>    localArray[0] = 10;</span>
+<span id='line-39'>    localArray[1] = 20;</span>
+<span id='line-40'>    int firstElement = localArray[0];</span>
 <span id='line-41'>    </span>
 <span id='line-42'>    // Test array index types</span>
 <span id='line-43'>    int index = 2;</span>
-<span class='error-line' id='line-44'>    localArray[index] = 30;  // OK</span>
+<span id='line-44'>    localArray[index] = 30;  // OK</span>
 <span id='line-45'>    </span>
 <span id='line-46'>    // Test invalid array index type (should generate error)</span>
 <span id='line-47'>    // string strIndex = &quot;2&quot;;</span>
@@ -1064,16 +545,16 @@
 <span id='line-55'>    </span>
 <span id='line-56'>    // Test array assignment compatibility</span>
 <span id='line-57'>    int[] arr1 = {1, 2, 3};</span>
-<span class='error-line' id='line-58'>    int[] arr2 = arr1;  // OK - reference assignment</span>
-<span class='error-line' id='line-59'>    arr2[0] = 100;  // Modifies both arr1 and arr2</span>
+<span id='line-58'>    int[] arr2 = arr1;  // OK - reference assignment</span>
+<span id='line-59'>    arr2[0] = 100;  // Modifies both arr1 and arr2</span>
 <span id='line-60'>    </span>
 <span id='line-61'>    // Test multi-dimensional array access</span>
-<span class='error-line' id='line-62'>    matrix[0][0] = 1;</span>
-<span class='error-line' id='line-63'>    matrix[1][1] = 5;</span>
-<span class='error-line' id='line-64'>    matrix[2][2] = 9;</span>
+<span id='line-62'>    matrix[0][0] = 1;</span>
+<span id='line-63'>    matrix[1][1] = 5;</span>
+<span id='line-64'>    matrix[2][2] = 9;</span>
 <span id='line-65'>    </span>
 <span id='line-66'>    // Test passing arrays to functions</span>
-<span class='error-line' id='line-67'>    int[] squares = createArray(5);</span>
+<span id='line-67'>    int[] squares = createArray(5);</span>
 <span id='line-68'>    int total = sumArray(squares);</span>
 <span id='line-69'>    </span>
 <span id='line-70'>    // Test array length property (if supported)</span>
@@ -1085,8 +566,8 @@
 <span id='line-76'>    </span>
 <span id='line-77'>    // Test array element type compatibility</span>
 <span id='line-78'>    float[] floatArr = new float[3];</span>
-<span class='error-line' id='line-79'>    floatArr[0] = 1;      // int to float promotion - OK</span>
-<span class='error-line' id='line-80'>    floatArr[1] = 2.5;    // OK</span>
+<span id='line-79'>    floatArr[0] = 1;      // int to float promotion - OK</span>
+<span id='line-80'>    floatArr[1] = 2.5;    // OK</span>
 <span id='line-81'>    // floatArr[2] = &quot;3.0&quot;;  // ERROR: Cannot assign string to float</span>
 <span id='line-82'>}</span>
 <span id='line-83'></span>
@@ -1094,12 +575,12 @@
 <span id='line-85'>void matrixOperations() {</span>
 <span id='line-86'>    int[][] matrixA = {{1, 2}, {3, 4}};</span>
 <span id='line-87'>    int[][] matrixB = {{5, 6}, {7, 8}};</span>
-<span class='error-line' id='line-88'>    int[][] result = new int[2][2];</span>
+<span id='line-88'>    int[][] result = new int[2][2];</span>
 <span id='line-89'>    </span>
 <span id='line-90'>    // Matrix addition</span>
 <span id='line-91'>    for (int i = 0; i &lt; 2; i++) {</span>
 <span id='line-92'>        for (int j = 0; j &lt; 2; j++) {</span>
-<span class='error-line' id='line-93'>            result[i][j] = matrixA[i][j] + matrixB[i][j];</span>
+<span id='line-93'>            result[i][j] = matrixA[i][j] + matrixB[i][j];</span>
 <span id='line-94'>        }</span>
 <span id='line-95'>    }</span>
 <span id='line-96'>}</span>
@@ -1146,43 +627,43 @@
       </tr>
       <tr>
         <td>globalIntArray</td>
-        <td>int</td>
+        <td>int[]</td>
         <td>Variable</td>
         <td>5</td>
       </tr>
       <tr>
         <td>globalStringArray</td>
-        <td>string</td>
+        <td>string[]</td>
         <td>Variable</td>
         <td>6</td>
       </tr>
       <tr>
         <td>globalFloatArray</td>
-        <td>float</td>
+        <td>float[]</td>
         <td>Variable</td>
         <td>7</td>
       </tr>
       <tr>
         <td>matrix</td>
-        <td>int</td>
+        <td>int[][]</td>
         <td>Variable</td>
         <td>10</td>
       </tr>
       <tr>
         <td>stringMatrix</td>
-        <td>string</td>
+        <td>string[][]</td>
         <td>Variable</td>
         <td>11</td>
       </tr>
       <tr>
         <td>createArray</td>
-        <td>(int) -&gt; int</td>
+        <td>(int) -&gt; int[]</td>
         <td>Function</td>
         <td>14</td>
       </tr>
       <tr>
         <td>sumArray</td>
-        <td>(int) -&gt; int</td>
+        <td>(int[]) -&gt; int</td>
         <td>Function</td>
         <td>23</td>
       </tr>
@@ -1240,29 +721,14 @@
         <tbody>
           <tr>
             <td>result</td>
-            <td>int</td>
+            <td>int[]</td>
             <td>Variable</td>
             <td>15</td>
           </tr>
         </tbody>
       </table>
       <div class='scope-block'>
-        <div class='scope-header'>Scope: block_0</div>
-        <table class='symbol-table-content'>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Type</th>
-              <th>Kind</th>
-              <th>Line</th>
-            </tr>
-          </thead>
-          <tbody>
-          </tbody>
-        </table>
-      </div>
-      <div class='scope-block'>
-        <div class='scope-header'>Scope: block_1</div>
+        <div class='scope-header'>Scope: for-loop</div>
         <table class='symbol-table-content'>
           <thead>
             <tr>
@@ -1277,10 +743,25 @@
               <td>i</td>
               <td>int</td>
               <td>Variable</td>
-              <td>0</td>
+              <td>16</td>
             </tr>
           </tbody>
         </table>
+        <div class='scope-block'>
+          <div class='scope-header'>Scope: block_0</div>
+          <table class='symbol-table-content'>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Kind</th>
+                <th>Line</th>
+              </tr>
+            </thead>
+            <tbody>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -1298,7 +779,7 @@
       <tbody>
         <tr>
           <td>arr</td>
-          <td>int</td>
+          <td>int[]</td>
           <td>Variable</td>
           <td>23</td>
         </tr>
@@ -1325,7 +806,7 @@
         </tbody>
       </table>
       <div class='scope-block'>
-        <div class='scope-header'>Scope: block_0</div>
+        <div class='scope-header'>Scope: for-each-loop</div>
         <table class='symbol-table-content'>
           <thead>
             <tr>
@@ -1336,23 +817,29 @@
             </tr>
           </thead>
           <tbody>
-          </tbody>
-        </table>
-      </div>
-      <div class='scope-block'>
-        <div class='scope-header'>Scope: block_1</div>
-        <table class='symbol-table-content'>
-          <thead>
             <tr>
-              <th>Name</th>
-              <th>Type</th>
-              <th>Kind</th>
-              <th>Line</th>
+              <td>val</td>
+              <td>int</td>
+              <td>Variable</td>
+              <td>25</td>
             </tr>
-          </thead>
-          <tbody>
           </tbody>
         </table>
+        <div class='scope-block'>
+          <div class='scope-header'>Scope: block_0</div>
+          <table class='symbol-table-content'>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Kind</th>
+                <th>Line</th>
+              </tr>
+            </thead>
+            <tbody>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -1384,19 +871,19 @@
         <tbody>
           <tr>
             <td>localArray</td>
-            <td>int</td>
+            <td>int[]</td>
             <td>Variable</td>
             <td>33</td>
           </tr>
           <tr>
             <td>flags</td>
-            <td>boolean</td>
+            <td>boolean[]</td>
             <td>Variable</td>
             <td>34</td>
           </tr>
           <tr>
             <td>letters</td>
-            <td>char</td>
+            <td>char[]</td>
             <td>Variable</td>
             <td>35</td>
           </tr>
@@ -1414,19 +901,19 @@
           </tr>
           <tr>
             <td>arr1</td>
-            <td>int</td>
+            <td>int[]</td>
             <td>Variable</td>
             <td>57</td>
           </tr>
           <tr>
             <td>arr2</td>
-            <td>int</td>
+            <td>int[]</td>
             <td>Variable</td>
             <td>58</td>
           </tr>
           <tr>
             <td>squares</td>
-            <td>int</td>
+            <td>int[]</td>
             <td>Variable</td>
             <td>67</td>
           </tr>
@@ -1438,13 +925,13 @@
           </tr>
           <tr>
             <td>nullArray</td>
-            <td>int</td>
+            <td>int[]</td>
             <td>Variable</td>
             <td>74</td>
           </tr>
           <tr>
             <td>floatArr</td>
-            <td>float</td>
+            <td>float[]</td>
             <td>Variable</td>
             <td>78</td>
           </tr>
@@ -1480,26 +967,26 @@
         <tbody>
           <tr>
             <td>matrixA</td>
-            <td>int</td>
+            <td>int[][]</td>
             <td>Variable</td>
             <td>86</td>
           </tr>
           <tr>
             <td>matrixB</td>
-            <td>int</td>
+            <td>int[][]</td>
             <td>Variable</td>
             <td>87</td>
           </tr>
           <tr>
             <td>result</td>
-            <td>int</td>
+            <td>int[][]</td>
             <td>Variable</td>
             <td>88</td>
           </tr>
         </tbody>
       </table>
       <div class='scope-block'>
-        <div class='scope-header'>Scope: block_0</div>
+        <div class='scope-header'>Scope: for-loop</div>
         <table class='symbol-table-content'>
           <thead>
             <tr>
@@ -1510,6 +997,12 @@
             </tr>
           </thead>
           <tbody>
+            <tr>
+              <td>i</td>
+              <td>int</td>
+              <td>Variable</td>
+              <td>91</td>
+            </tr>
           </tbody>
         </table>
         <div class='scope-block'>
@@ -1526,49 +1019,43 @@
             <tbody>
             </tbody>
           </table>
+          <div class='scope-block'>
+            <div class='scope-header'>Scope: for-loop</div>
+            <table class='symbol-table-content'>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Type</th>
+                  <th>Kind</th>
+                  <th>Line</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>j</td>
+                  <td>int</td>
+                  <td>Variable</td>
+                  <td>92</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class='scope-block'>
+              <div class='scope-header'>Scope: block_0</div>
+              <table class='symbol-table-content'>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Kind</th>
+                    <th>Line</th>
+                  </tr>
+                </thead>
+                <tbody>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-        <div class='scope-block'>
-          <div class='scope-header'>Scope: block_1</div>
-          <table class='symbol-table-content'>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Type</th>
-                <th>Kind</th>
-                <th>Line</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>j</td>
-                <td>int</td>
-                <td>Variable</td>
-                <td>0</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div class='scope-block'>
-        <div class='scope-header'>Scope: block_1</div>
-        <table class='symbol-table-content'>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Type</th>
-              <th>Kind</th>
-              <th>Line</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>i</td>
-              <td>int</td>
-              <td>Variable</td>
-              <td>0</td>
-            </tr>
-          </tbody>
-        </table>
       </div>
     </div>
   </div>
@@ -1600,7 +1087,7 @@
         <tbody>
           <tr>
             <td>primes</td>
-            <td>int</td>
+            <td>int[]</td>
             <td>Variable</td>
             <td>103</td>
           </tr>

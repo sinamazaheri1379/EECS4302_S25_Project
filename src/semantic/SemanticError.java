@@ -65,8 +65,8 @@ public class SemanticError {
         ARRAY_INDEX_TYPE("Invalid array index type"),
         VISIBILITY_VIOLATION("Visibility violation"),
         // Internal errors
-        INTERNAL_ERROR("Internal compiler error");
-    	
+        INTERNAL_ERROR("Internal compiler error"),
+    	VISIBILITY_ERROR("Visibility Error");
     	
         private final String description;
         

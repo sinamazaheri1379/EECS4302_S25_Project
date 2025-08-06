@@ -106,10 +106,20 @@ public class SymbolTable {
      * Returns true if successful, false if symbol already exists.
      */
     public boolean define(Symbol symbol) {
-    	if (symbol == null || symbol.getName() == null) return false;
+        if (symbol == null || symbol.getName() == null) return false;
+        
         if (symbol instanceof MethodSymbol) {
             // Handle method overloading
             MethodSymbol method = (MethodSymbol) symbol;
+            
+            // Check if there's already a non-method symbol with this name
+            Symbol existing = symbols.get(method.getName());
+            if (existing != null && !(existing instanceof MethodSymbol)) {
+                return false; // Can't overload non-methods
+            }
+            
+            // Add to BOTH maps - this is the key fix!
+            symbols.put(method.getName(), method);  // Add to regular symbols
             methodOverloads.computeIfAbsent(method.getName(), k -> new ArrayList<>())
                           .add(method);
             return true;
@@ -123,18 +133,21 @@ public class SymbolTable {
         return true;
     }
     
-    
-    // Add method to find overloaded methods
-    public List<MethodSymbol> getMethodOverloads(String name) {
-        List<MethodSymbol> overloads = methodOverloads.get(name);
-        return overloads != null ? new ArrayList<>(overloads) : new ArrayList<>();
-    }
-    
     /**
      * Resolve a symbol by name in this scope only (not parents).
      */
     public Symbol resolveLocal(String name) {
-        return symbols.get(name);
+        Symbol symbol = symbols.get(name);
+        
+        // If it's a method, you might want to return the first one or handle specially
+        if (symbol instanceof MethodSymbol && methodOverloads.containsKey(name)) {
+            List<MethodSymbol> overloads = methodOverloads.get(name);
+            if (!overloads.isEmpty()) {
+                return overloads.get(0); // Return first overload for simple lookup
+            }
+        }
+        
+        return symbol;
     }
     
     /**

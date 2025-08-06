@@ -113,6 +113,7 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         currentScope.define(classSymbol);
     }
     
+    
     @Override
     public Void visitClassDecl(ClassDeclContext ctx) {
         String className = ctx.ID(0).getText();
@@ -251,17 +252,45 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         Type returnType = funcDecl.VOID() != null ? 
             PrimitiveType.VOID : getType(funcDecl.type());
         
-        // Note: We allow method overloading, so we don't check for redefinition here
+        // Handle array return types
+        for (int i = 0; i < funcDecl.getChildCount(); i++) {
+            ParseTree child = funcDecl.getChild(i);
+            if (child instanceof TerminalNode) {
+                TerminalNode terminal = (TerminalNode) child;
+                if (terminal.getSymbol().getType() == TypeCheckerParser.LBRACK) {
+                    returnType = new ArrayType(returnType);
+                }
+            }
+        }
         
-        MethodSymbol method = new MethodSymbol(methodName, returnType, token.getLine(), token.getCharPositionInLine());
+        MethodSymbol method = new MethodSymbol(methodName, returnType, 
+            token.getLine(), token.getCharPositionInLine());
         method.setVisibility(visibility);
         method.setStatic(isStatic);
         method.setOwnerClass(currentClass);
         
+        System.out.println("Adding method " + method.getName() + " to class " + currentClass.getName());
+        
+        // Add method to class
+        if (currentClass != null) {
+            currentClass.addMethod(method);
+            System.out.println("Class now has " + currentClass.getMethods(method.getName()).size() + 
+                              " method(s) named " + method.getName());
+        }
+        
+        // Define method in current scope (which should be the class scope)
+        boolean defined = currentScope.define(method);
+        System.out.println("Defined method " + method.getName() + " in scope " + 
+                          currentScope.getScopeName() + ": " + defined);
+        
         // Create method scope
         SymbolTable methodScope = SymbolTable.createMethodScope(methodName, currentScope, method);
         
-        // Process parameters
+        // Store associations for TypeChecker
+        nodeScopes.put(ctx, methodScope);
+        nodeScopes.put(funcDecl, methodScope);
+        
+        // Process parameters and body in method scope
         SymbolTable savedScope = currentScope;
         currentScope = methodScope;
         
@@ -269,11 +298,6 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
             processParameters(funcDecl.paramList(), method);
         }
         
-        // Add to class method list for overloading support
-        if (currentClass != null) {
-            currentClass.addMethod(method);
-        }
-        currentScope.define(method);
         // Process method body
         visit(funcDecl.block());
         
@@ -313,25 +337,21 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
             constructorName, currentScope
         );
         
+        // Store the association for TypeChecker
+        nodeScopes.put(ctx, constructorScope);  // Add this line!
+        
         // Process parameters
         SymbolTable savedScope = currentScope;
         currentScope = constructorScope;
         
-        List<VariableSymbol> params = new ArrayList<>();
         if (ctx.paramList() != null) {
-            for (var param : ctx.paramList().param()) {
-                VariableSymbol paramSymbol = processParameter(param);
-                if (paramSymbol != null) {
-                    params.add(paramSymbol);
-                    constructor.addParameter(paramSymbol);
-                }
-            }
+        	processParameters(ctx.paramList(), constructor);
         }
         
-        // Check if constructor with same signature already exists
+        // Check for duplicate constructors
         boolean isDuplicate = false;
         for (ConstructorSymbol existing : currentClass.getConstructors()) {
-            if (hasSameParameterTypes(existing.getParameters(), params)) {
+            if (hasSameParameterTypes(existing.getParameters(), constructor.getParameters())) {
                 reportError(token,
                     "Constructor with same parameter types already defined",
                     SemanticError.ErrorType.REDEFINITION
@@ -351,6 +371,15 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         currentScope = savedScope;
         
         return null;
+    }
+    
+    private void processParameters(ParamListContext paramList, ConstructorSymbol constructor) {
+        for (var param : paramList.param()) {
+            VariableSymbol paramSymbol = processParameter(param);
+            if (paramSymbol != null) {
+                constructor.addParameter(paramSymbol);
+            }
+        }
     }
     
     @Override
@@ -388,6 +417,7 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         
         return null;
     }
+    
     
     @Override
     public Void visitFuncDecl(FuncDeclContext ctx) {
@@ -614,35 +644,263 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
             return ErrorType.getInstance();
         }
         
+        // First, get the base type
+        Type baseType = null;
+        
         if (ctx.primitiveType() != null) {
             var primType = ctx.primitiveType();
-            if (primType.INT() != null) return PrimitiveType.INT;
-            if (primType.FLOAT() != null) return PrimitiveType.FLOAT;
-            if (primType.STRING() != null) return PrimitiveType.STRING;
-            if (primType.BOOLEAN() != null) return PrimitiveType.BOOLEAN;
-            if (primType.CHAR() != null) return PrimitiveType.CHAR;
-        }else if (ctx.classType() != null) {
+            if (primType.INT() != null) baseType = PrimitiveType.INT;
+            else if (primType.FLOAT() != null) baseType = PrimitiveType.FLOAT;
+            else if (primType.STRING() != null) baseType = PrimitiveType.STRING;
+            else if (primType.BOOLEAN() != null) baseType = PrimitiveType.BOOLEAN;
+            else if (primType.CHAR() != null) baseType = PrimitiveType.CHAR;
+        } else if (ctx.classType() != null) {
             String className = ctx.classType().ID().getText();
             Symbol classSymbol = globalScope.resolve(className);
             
             if (classSymbol instanceof ClassSymbol) {
-                return new ClassType(className, (ClassSymbol) classSymbol);
+                baseType = new ClassType(className, (ClassSymbol) classSymbol);
+            } else {
+                // Create unresolved type and track it
+                ClassType unresolvedType = new ClassType(className, null);
+                unresolvedTypes.computeIfAbsent(className, k -> new ArrayList<>())
+                               .add(unresolvedType);
+                baseType = unresolvedType;
             }
-            
-            // Create unresolved type and track it
-            ClassType unresolvedType = new ClassType(className, null);
-            unresolvedTypes.computeIfAbsent(className, k -> new ArrayList<>())
-                           .add(unresolvedType);
-            return unresolvedType;
         }
         
-        return ErrorType.getInstance();
+        if (baseType == null) {
+            return ErrorType.getInstance();
+        }
+        
+        // NOW HANDLE ARRAY DIMENSIONS from the ('[' ']')* part
+        Type result = baseType;
+        for (int i = 0; i < ctx.getChildCount(); i++) {
+            ParseTree child = ctx.getChild(i);
+            if (child instanceof TerminalNode && 
+                child.getText().equals("[")) {
+                result = new ArrayType(result);
+            }
+        }
+        
+        return result;
+    }
+    
+    @Override
+    public Void visitForStmt(ForStmtContext ctx) {
+        // Create new scope for the for loop
+        SymbolTable forLoopTable = new SymbolTable("for-loop", 
+            SymbolTable.ScopeType.FOR, currentScope);
+        
+        // Store the association for TypeChecker
+        nodeScopes.put(ctx, forLoopTable);
+        
+        SymbolTable savedScope = currentScope;
+        currentScope = forLoopTable;
+        
+        try {
+            // Visit the for-init (variable declaration or expression)
+            if (ctx.forInit() != null) {
+                visit(ctx.forInit());
+            }
+            
+            // Visit condition
+            if (ctx.expr() != null) {
+                visit(ctx.expr());
+            }
+            
+            // Visit update
+            if (ctx.forUpdate() != null) {
+                visit(ctx.forUpdate());
+            }
+            
+            // Visit the loop body
+            if (ctx.statement() != null) {
+                visit(ctx.statement());
+            }
+        } finally {
+            // Restore previous scope
+            currentScope = savedScope;
+        }
+        
+        return null;
+    }
+    
+    @Override
+    public Void visitForEachStmt(ForEachStmtContext ctx) {
+        // Create new scope for enhanced for loop
+        SymbolTable forEachTable = new SymbolTable("for-each-loop", 
+            SymbolTable.ScopeType.FOR, currentScope);
+        
+        // Store the association
+        nodeScopes.put(ctx, forEachTable);
+        
+        SymbolTable savedScope = currentScope;
+        currentScope = forEachTable;
+        
+        try {
+            // Add the loop variable to the scope
+            Type elementType = getType(ctx.type());
+            String varName = ctx.ID().getText();
+            Token token = ctx.ID().getSymbol();
+            
+            // Check for duplicate variable
+            if (currentScope.resolveLocal(varName) != null) {
+                reportError(token,
+                    "Variable '" + varName + "' is already defined in this scope",
+                    SemanticError.ErrorType.REDEFINITION
+                );
+            } else {
+                VariableSymbol loopVar = new VariableSymbol(
+                    varName, 
+                    elementType, 
+                    token.getLine(), 
+                    token.getCharPositionInLine()
+                );
+                loopVar.setFinal(ctx.FINAL() != null);
+                loopVar.setInitialized(true);
+                currentScope.define(loopVar);
+            }
+            
+            // Visit the iterable expression
+            if (ctx.expr() != null) {
+                visit(ctx.expr());
+            }
+            
+            // Visit the loop body
+            if (ctx.statement() != null) {
+                visit(ctx.statement());
+            }
+        } finally {
+            // Restore previous scope
+            currentScope = savedScope;
+        }
+        
+        return null;
+    }
+
+    @Override
+    public Void visitThisLvalue(ThisLvalueContext ctx) {
+        // Nothing to do in symbol table building
+        return null;
+    }
+
+    @Override
+    public Void visitSuperLvalue(SuperLvalueContext ctx) {
+        // Nothing to do in symbol table building
+        return null;
+    }
+    
+    @Override
+    public Void visitForInit(ForInitContext ctx) {
+        if (ctx == null) return null;
+        
+        // Check if it's a variable declaration (has type)
+        if (ctx.type() != null) {
+            // This is a variable declaration in for-init
+            Type type = getType(ctx.type());
+            boolean isFinal = ctx.FINAL() != null;
+            
+            // Process each variable declarator
+            for (var declarator : ctx.varDeclarator()) {
+                String name = declarator.ID().getText();
+                Token token = declarator.ID().getSymbol();
+                
+                if (currentScope.resolveLocal(name) != null) {
+                    reportError(token,
+                        "Variable '" + name + "' is already defined in this scope",
+                        SemanticError.ErrorType.REDEFINITION
+                    );
+                    continue;
+                }
+                
+                Type varType = handleArrayType(type, declarator);
+                
+                VariableSymbol var = new VariableSymbol(name, varType, 
+                    token.getLine(), token.getCharPositionInLine());
+                var.setFinal(isFinal);
+                
+                if (declarator.initializer() != null) {
+                    var.setInitialized(true);
+                    visit(declarator.initializer());
+                }
+                
+                currentScope.define(var);
+            }
+        } 
+        // Otherwise it's an expression list
+        else if (ctx.exprList() != null) {
+            visit(ctx.exprList());
+        }
+        
+        return null;
+    }
+
+    @Override
+    public Void visitForUpdate(ForUpdateContext ctx) {
+        if (ctx == null) return null;
+        
+        // forUpdate just contains an expression list
+        if (ctx.exprList() != null) {
+            visit(ctx.exprList());
+        }
+        
+        return null;
+    }
+    
+    @Override
+    public Void visitWhileStmt(WhileStmtContext ctx) {
+        // Create new scope for while loop (for consistency)
+        SymbolTable whileTable = new SymbolTable("while-loop", 
+            SymbolTable.ScopeType.WHILE, currentScope);
+        
+        nodeScopes.put(ctx, whileTable);
+        
+        SymbolTable savedScope = currentScope;
+        currentScope = whileTable;
+        
+        try {
+            if (ctx.expr() != null) {
+                visit(ctx.expr());
+            }
+            if (ctx.statement() != null) {
+                visit(ctx.statement());
+            }
+        } finally {
+            currentScope = savedScope;
+        }
+        
+        return null;
+    }
+
+    @Override
+    public Void visitDoWhileStmt(DoWhileStmtContext ctx) {
+        // Create new scope for do-while loop
+        SymbolTable doWhileTable = new SymbolTable("do-while-loop", 
+            SymbolTable.ScopeType.WHILE, currentScope);
+        
+        nodeScopes.put(ctx, doWhileTable);
+        
+        SymbolTable savedScope = currentScope;
+        currentScope = doWhileTable;
+        
+        try {
+            if (ctx.statement() != null) {
+                visit(ctx.statement());
+            }
+            if (ctx.expr() != null) {
+                visit(ctx.expr());
+            }
+        } finally {
+            currentScope = savedScope;
+        }
+        
+        return null;
     }
     
     @Override
     public Void visitLocalVarDeclStmt(LocalVarDeclStmtContext ctx) {
         // Just visit the local variable declaration
-    	System.out.println("Visiting local var decl stmt");
         if (ctx.localVarDecl() != null) {
             visit(ctx.localVarDecl());
         }
@@ -652,7 +910,6 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
     @Override
     public Void visitLocalVarDecl(LocalVarDeclContext ctx) {
         // Handle the optional FINAL modifier and delegate to varDecl
-    	System.out.println("Visiting local var decl");
         if (ctx.varDecl() != null) {
             visit(ctx.varDecl());
         }
@@ -662,7 +919,6 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
     @Override
     public Void visitStatement(StatementContext ctx) {
         // Visit the specific statement type
-    	System.out.println("Visiting stmt");
         return visitChildren(ctx);
     }
 }

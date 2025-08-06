@@ -242,6 +242,20 @@ public interface TypeCheckerVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitEmptyStmt(TypeCheckerParser.EmptyStmtContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code SuperLvalue}
+	 * labeled alternative in {@link TypeCheckerParser#lvalue}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSuperLvalue(TypeCheckerParser.SuperLvalueContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code ThisLvalue}
+	 * labeled alternative in {@link TypeCheckerParser#lvalue}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitThisLvalue(TypeCheckerParser.ThisLvalueContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code FieldLvalue}
 	 * labeled alternative in {@link TypeCheckerParser#lvalue}.
 	 * @param ctx the parse tree
@@ -355,6 +369,20 @@ public interface TypeCheckerVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitInstanceOfExpr(TypeCheckerParser.InstanceOfExprContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code StaticFieldAccess}
+	 * labeled alternative in {@link TypeCheckerParser#expr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitStaticFieldAccess(TypeCheckerParser.StaticFieldAccessContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code StaticMethodCall}
+	 * labeled alternative in {@link TypeCheckerParser#expr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitStaticMethodCall(TypeCheckerParser.StaticMethodCallContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code ArrayAccess}
 	 * labeled alternative in {@link TypeCheckerParser#expr}.
