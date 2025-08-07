@@ -1,13 +1,16 @@
 // Main.java
 package main;
 
-import generated.*;
 import semantic.*;
 import semantic.analysis.SymbolTableBuilder;
 import semantic.analysis.TypeChecker;
 
 import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.tree.*;
+
+import antlr.TypeCheckerLexer;
+import antlr.TypeCheckerParser;
+
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;

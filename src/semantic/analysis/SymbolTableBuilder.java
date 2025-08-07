@@ -1,7 +1,5 @@
 package semantic.analysis;
 
-import generated.*;
-import generated.TypeCheckerParser.*;
 import semantic.*;
 import semantic.symbols.*;
 import semantic.types.*;
@@ -9,6 +7,11 @@ import semantic.types.*;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+
+import antlr.TypeCheckerBaseVisitor;
+import antlr.TypeCheckerParser;
+import antlr.TypeCheckerParser.*;
+
 import java.util.*;
 
 /**
@@ -19,6 +22,8 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
     private SymbolTable globalScope;
     private SymbolTable currentScope;
     private ClassSymbol currentClass;
+    private boolean inConstructor = false;
+    private ConstructorSymbol currentConstructor = null;
     private List<SemanticError> errors;
     private Set<String> imports;
     private Map<String, List<ClassType>> unresolvedTypes;
@@ -312,75 +317,138 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
     }
     
     @Override
-    public Void visitConstructorDecl(ConstructorDeclContext ctx) {
-        String constructorName = ctx.ID().getText();
-        Token token = ctx.ID().getSymbol();
-        
-        // Verify constructor name matches class name
-        if (currentClass == null || !constructorName.equals(currentClass.getName())) {
-            reportError(token,
-                "Constructor name must match class name",
-                SemanticError.ErrorType.CONSTRUCTOR_ERROR
-            );
+    public Void visitConstructorDecl(TypeCheckerParser.ConstructorDeclContext ctx) {
+        if (currentClass == null) {
+            reportError(ctx.ID().getSymbol(),
+                "Constructor outside of class",
+                SemanticError.ErrorType.CONSTRUCTOR_ERROR);
             return null;
         }
         
-        VariableSymbol.Visibility visibility = getVisibility(ctx.visibility());
+        String constructorName = ctx.ID().getText();
+        Token token = ctx.ID().getSymbol();
         
+        // Constructor name must match class name
+        if (!constructorName.equals(currentClass.getName())) {
+            reportError(token,
+                "Constructor name must match class name",
+                SemanticError.ErrorType.CONSTRUCTOR_ERROR);
+            return null;
+        }
+        
+        // Create constructor symbol
         ConstructorSymbol constructor = new ConstructorSymbol(
-            constructorName, token.getLine(), token.getCharPositionInLine()
-        );
-        constructor.setVisibility(visibility);
+            constructorName, token.getLine(), token.getCharPositionInLine());
+        
+        // Set visibility
+        if (ctx.visibility() != null) {
+            String vis = ctx.visibility().getText();
+            constructor.setVisibility(
+                vis.equals("public") ? VariableSymbol.Visibility.PUBLIC :
+                vis.equals("private") ? VariableSymbol.Visibility.PRIVATE :
+                VariableSymbol.Visibility.PROTECTED);
+        } else {
+            constructor.setVisibility(VariableSymbol.Visibility.PUBLIC);
+        }
+        
+        constructor.setOwnerClass(currentClass);
+        
+        // Add constructor to class
+        currentClass.addConstructor(constructor);
         
         // Create constructor scope
         SymbolTable constructorScope = SymbolTable.createConstructorScope(
-            constructorName, currentScope
-        );
-        
-        // Store the association for TypeChecker
-        nodeScopes.put(ctx, constructorScope);  // Add this line!
+            constructorName, currentScope);
         
         // Process parameters
-        SymbolTable savedScope = currentScope;
-        currentScope = constructorScope;
-        
         if (ctx.paramList() != null) {
-        	processParameters(ctx.paramList(), constructor);
+            SymbolTable savedScope = currentScope;
+            currentScope = constructorScope;
+            processParameters(ctx.paramList(), constructor);
+            currentScope = savedScope;
         }
         
-        // Check for duplicate constructors
-        boolean isDuplicate = false;
-        for (ConstructorSymbol existing : currentClass.getConstructors()) {
-            if (hasSameParameterTypes(existing.getParameters(), constructor.getParameters())) {
-                reportError(token,
-                    "Constructor with same parameter types already defined",
-                    SemanticError.ErrorType.REDEFINITION
-                );
-                isDuplicate = true;
-                break;
-            }
-        }
-        
-        if (!isDuplicate) {
-            currentClass.addConstructor(constructor);
-        }
+        // Store association for TypeChecker
+        nodeScopes.put(ctx, constructorScope);
         
         // Process constructor body
-        visit(ctx.block());
+        SymbolTable savedScope = currentScope;
+        currentScope = constructorScope;
+        boolean wasInConstructor = inConstructor;
+        ConstructorSymbol savedConstructor = currentConstructor;
         
+        inConstructor = true;
+        currentConstructor = constructor;
+        
+        // Visit constructor body
+        visit(ctx.constructorBody());
+        
+        inConstructor = wasInConstructor;
+        currentConstructor = savedConstructor;
         currentScope = savedScope;
         
         return null;
     }
     
-    private void processParameters(ParamListContext paramList, ConstructorSymbol constructor) {
-        for (var param : paramList.param()) {
-            VariableSymbol paramSymbol = processParameter(param);
-            if (paramSymbol != null) {
-                constructor.addParameter(paramSymbol);
-            }
+    @Override
+    public Void visitConstructorBody(TypeCheckerParser.ConstructorBodyContext ctx) {
+        // Process constructor call if present
+        if (ctx.constructorCall() != null) {
+            visit(ctx.constructorCall());
         }
+        
+        // Process all statements
+        for (var stmt : ctx.statement()) {
+            visit(stmt);
+        }
+        
+        return null;
     }
+    
+    @Override
+    public Void visitSuperConstructorCall(TypeCheckerParser.SuperConstructorCallContext ctx) {
+        if (!inConstructor) {
+            reportError(ctx.SUPER().getSymbol(),
+                "super() can only be called from a constructor",
+                SemanticError.ErrorType.INVALID_SUPER);
+            return null;
+        }
+        
+        if (currentClass.getSuperClass() == null) {
+            reportError(ctx.SUPER().getSymbol(),
+                "No superclass to call super() on",
+                SemanticError.ErrorType.INVALID_SUPER);
+            return null;
+        }
+        
+        // Process arguments
+        if (ctx.argList() != null) {
+            visit(ctx.argList());
+        }
+        
+        return null;
+    }
+    
+    @Override
+    public Void visitThisConstructorCall(TypeCheckerParser.ThisConstructorCallContext ctx) {
+        if (!inConstructor) {
+            reportError(ctx.THIS().getSymbol(),
+                "this() can only be called from a constructor",
+                SemanticError.ErrorType.INVALID_THIS);
+            return null;
+        }
+        
+        // Process arguments
+        if (ctx.argList() != null) {
+            visit(ctx.argList());
+        }
+        
+        return null;
+    }
+    
+    
+    
+    
     
     @Override
     public Void visitGlobalVarDecl(GlobalVarDeclContext ctx) {
@@ -561,16 +629,27 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
         return result;
     }
     
+ // For ConstructorSymbol
+    private void processParameters(ParamListContext paramList, ConstructorSymbol constructor) {
+        for (var param : paramList.param()) {
+            VariableSymbol paramSymbol = processParameter(param);
+            if (paramSymbol != null) {
+                constructor.addParameter(paramSymbol);  // Add to constructor's param list
+            }
+        }
+    }
+
+    // For FunctionSymbol
     private void processParameters(ParamListContext paramList, FunctionSymbol function) {
         for (var param : paramList.param()) {
             VariableSymbol paramSymbol = processParameter(param);
             if (paramSymbol != null) {
-                function.addParameter(paramSymbol);
+                function.addParameter(paramSymbol);  // Add to function's param list
             }
         }
     }
     
-    private VariableSymbol processParameter(ParamContext param) {
+    private VariableSymbol processParameter(TypeCheckerParser.ParamContext param) {
         String paramName = param.ID().getText();
         Type paramType = getType(param.type());
         Token paramToken = param.ID().getSymbol();
@@ -586,12 +665,18 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
             }
         }
         
+        // Create parameter symbol
         VariableSymbol paramSymbol = new VariableSymbol(
-            paramName, paramType, paramToken.getLine(), paramToken.getCharPositionInLine()
+            paramName, paramType, 
+            paramToken.getLine(), 
+            paramToken.getCharPositionInLine()
         );
-        paramSymbol.setInitialized(true);
-        paramSymbol.setParameter(true);
         
+        // Mark as parameter and initialized
+        paramSymbol.setParameter(true);  // ✅ Important!
+        paramSymbol.setInitialized(true);
+        
+        // Handle final modifier
         if (param.FINAL() != null) {
             paramSymbol.setFinal(true);
         }
@@ -605,22 +690,9 @@ public class SymbolTableBuilder extends TypeCheckerBaseVisitor<Void> {
             return null;
         }
         
+        // Add to scope
         currentScope.define(paramSymbol);
         return paramSymbol;
-    }
-    
-    private boolean hasSameParameterTypes(List<VariableSymbol> params1, List<VariableSymbol> params2) {
-        if (params1.size() != params2.size()) {
-            return false;
-        }
-        
-        for (int i = 0; i < params1.size(); i++) {
-            if (!params1.get(i).getType().equals(params2.get(i).getType())) {
-                return false;
-            }
-        }
-        
-        return true;
     }
     
     private VariableSymbol.Visibility getVisibility(VisibilityContext ctx) {

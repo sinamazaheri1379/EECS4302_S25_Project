@@ -107,7 +107,7 @@ public class ClassSymbol extends Symbol {
             }
         }
         
-        // If no constructor found and no args, create default
+        // If no constructor found and no args, create default constructor
         if (argTypes.isEmpty() && constructors.isEmpty()) {
             return createDefaultConstructor();
         }
@@ -153,6 +153,7 @@ public class ClassSymbol extends Symbol {
         ConstructorSymbol defaultConstructor = new ConstructorSymbol(name, line, column);
         defaultConstructor.setVisibility(VariableSymbol.Visibility.PUBLIC);
         defaultConstructor.setOwnerClass(this);
+        constructors.add(defaultConstructor);
         return defaultConstructor;
     }
     

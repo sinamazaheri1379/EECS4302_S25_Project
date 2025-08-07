@@ -1,6 +1,31 @@
 // test-expressions.tc
 // Tests complex expressions, operator precedence, and type conversions
 
+class Animal {
+    protected string name;
+    protected int age;
+    
+    public Animal(string name, int age) {
+        this.name = name;
+        this.age = age;
+    }
+}
+
+class Dog extends Animal {
+    private string breed;
+    
+    public Dog(string name, int age, string breed) {
+        super(name, age);
+        this.breed = breed;
+    }
+}
+
+class Cat extends Animal {
+    public Cat(string name, int age) {
+        super(name, age);
+    }
+}
+
 class Calculator {
     // Test arithmetic operations
     public int add(int a, int b) {
@@ -52,8 +77,8 @@ void testArithmeticExpressions() {
     // Complex expressions with precedence
     int complex1 = a + b * 2;               // 10 + 6 = 16
     int complex2 = (a + b) * 2;             // 13 * 2 = 26
-    int complex3 = a * b + c / d;           // 30 + 2.75 = 32.75 -> 32
-    int complex4 = a + b * c - d;           // 10 + 16.5 - 2 = 24.5 -> 24
+    int complex3 = (int) (a * b + c / d);           // 30 + 2.75 = 32.75 -> 32
+    int complex4 = (int) (a + b * c - d);           // 10 + 16.5 - 2 = 24.5 -> 24
     
     // Unary operators
     int neg = -a;             // -10

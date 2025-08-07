@@ -1,0 +1,2401 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0'>
+<title>Type Checking Report - tests/oop-inheritance.tc</title>
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        background: #f8f9fa;
+    }
+
+    header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        font-weight: 700;
+    }
+
+    h2 {
+        font-size: 1.8rem;
+        color: #2d3748;
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 3px solid #e2e8f0;
+    }
+
+    .header-info {
+        display: flex;
+        gap: 2rem;
+        font-size: 1rem;
+        opacity: 0.95;
+    }
+
+    .info-item strong {
+        font-weight: 600;
+    }
+
+    section {
+        max-width: 1200px;
+        margin: 2rem auto;
+        padding: 2rem;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+    }
+
+    .success-box {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        padding: 2rem;
+        background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+        border-radius: 8px;
+        color: #0f5132;
+    }
+
+    .success-icon {
+        font-size: 3rem;
+        font-weight: bold;
+    }
+
+    .success-text {
+        font-size: 1.5rem;
+        font-weight: 600;
+    }
+
+    .error-summary {
+        background: #fff5f5;
+        padding: 2rem;
+        border-radius: 8px;
+        border: 1px solid #feb2b2;
+    }
+
+    .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .stat-item {
+        text-align: center;
+        padding: 1rem;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .stat-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #e53e3e;
+    }
+
+    .stat-label {
+        font-size: 0.9rem;
+        color: #718096;
+        margin-top: 0.5rem;
+    }
+
+    .error-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    .error-group {
+        background: #fef5e7;
+        border: 1px solid #fdeaa8;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .error-line-header {
+        background: #fdc665;
+        color: #7c2d12;
+        padding: 0.75rem 1rem;
+        font-weight: 600;
+    }
+
+    .error-item {
+        padding: 1rem;
+        border-bottom: 1px solid #fdeaa8;
+    }
+
+    .error-item:last-child {
+        border-bottom: none;
+    }
+
+    .error-details {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .error-type {
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .error-type-mismatch {
+        background: #fed7d7;
+        color: #9b2c2c;
+    }
+
+    .error-undefined {
+        background: #e9d8fd;
+        color: #553c9a;
+    }
+
+    .error-redefinition {
+        background: #feebc8;
+        color: #92400e;
+    }
+
+    .error-access {
+        background: #c6f6d5;
+        color: #22543d;
+    }
+
+    .error-other {
+        background: #e2e8f0;
+        color: #2d3748;
+    }
+
+    .error-message {
+        color: #2d3748;
+        font-size: 1rem;
+    }
+
+    .error-suggestion {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        background: #f0fff4;
+        border-left: 3px solid #48bb78;
+        color: #22543d;
+        font-size: 0.9rem;
+    }
+
+    .suggestion-icon {
+        font-size: 1.2rem;
+    }
+
+    .code-context {
+        margin-top: 0.75rem;
+        padding: 0.75rem;
+        background: #2d3748;
+        border-radius: 6px;
+        overflow-x: auto;
+    }
+
+    .code-context code {
+        color: #e2e8f0;
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 0.9rem;
+    }
+
+    .code-container {
+        display: flex;
+        background: #2d3748;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .line-numbers {
+        background: #1a202c;
+        color: #718096;
+        padding: 1rem 0.5rem;
+        text-align: right;
+        user-select: none;
+        border-right: 1px solid #4a5568;
+    }
+
+    .line-numbers code {
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+
+    .code-content {
+        flex: 1;
+        padding: 1rem;
+        overflow-x: auto;
+    }
+
+    .code-content code {
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 0.9rem;
+        line-height: 1.5;
+        color: #e2e8f0;
+    }
+
+    .error-line {
+        background: rgba(245, 101, 101, 0.2);
+        display: inline-block;
+        width: 100%;
+    }
+
+    .scope-block {
+        margin-bottom: 1rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .scope-header {
+        background: #4299e1;
+        color: white;
+        padding: 0.75rem 1rem;
+        font-weight: 600;
+    }
+
+    .symbol-table-content {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .symbol-table-content th {
+        background: #edf2f7;
+        padding: 0.75rem;
+        text-align: left;
+        font-weight: 600;
+        color: #2d3748;
+        border-bottom: 2px solid #cbd5e0;
+    }
+
+    .symbol-table-content td {
+        padding: 0.75rem;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .symbol-table-content tr:hover {
+        background: #f7fafc;
+    }
+
+    .scope-block .scope-block {
+        margin: 1rem;
+    }
+
+    footer {
+        text-align: center;
+        padding: 2rem;
+        color: #718096;
+        font-size: 0.9rem;
+    }
+
+    @media (max-width: 768px) {
+        section {
+            margin: 1rem;
+            padding: 1rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+        }
+
+        .header-info {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .stat-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .code-container {
+            font-size: 0.8rem;
+        }
+    }
+</style>
+<script>
+    // Add interactive features
+    document.addEventListener('DOMContentLoaded', function() {
+        // Smooth scrolling for error navigation
+        const errorItems = document.querySelectorAll('.error-item');
+        errorItems.forEach(item => {
+            item.style.cursor = 'pointer';
+            item.addEventListener('click', function() {
+                const lineMatch = this.closest('.error-group').querySelector('.error-line-header').textContent.match(/Line (\d+)/);
+                if (lineMatch) {
+                    const lineNum = lineMatch[1];
+                    const lineElement = document.getElementById('line-' + lineNum);
+                    if (lineElement) {
+                        lineElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        lineElement.style.animation = 'highlight 2s ease-in-out';
+                    }
+                }
+            });
+        });
+    });
+
+    // CSS animation
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes highlight {
+            0% { background-color: rgba(245, 101, 101, 0.2); }
+            50% { background-color: rgba(245, 101, 101, 0.5); }
+            100% { background-color: rgba(245, 101, 101, 0.2); }
+        }
+    `;
+    document.head.appendChild(style);
+</script>
+</head>
+<body>
+<header>
+<h1>Type Checking Report</h1>
+<div class='header-info'>
+<div class='info-item'><strong>File:</strong> tests/oop-inheritance.tc</div>
+<div class='info-item'><strong>Generated:</strong> 2025-08-07 14:57:02</div>
+</div>
+</header>
+<section class='summary'>
+<h2>Summary</h2>
+<div class='error-summary'>
+<div class='stat-grid'>
+<div class='stat-item'>
+<div class='stat-value'>6</div>
+<div class='stat-label'>Total Errors</div>
+</div>
+<div class='stat-item'>
+<div class='stat-value'>3</div>
+<div class='stat-label'>Type mismatch</div>
+</div>
+<div class='stat-item'>
+<div class='stat-value'>3</div>
+<div class='stat-label'>Undefined variable</div>
+</div>
+</div>
+</div>
+</section>
+<section class='errors'>
+<h2>Error Details</h2>
+<div class='error-list'>
+<div class='error-group'>
+<div class='error-line-header'>Line 80</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-undefined'>Undefined variable</span>
+<span class='error-message'>Variable &#39;name&#39; is not defined</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Check variable spelling or ensure it&#39;s declared before use</span>
+</div>
+<pre class='code-context'><code>     79 |     public void purr() {
+&gt;&gt;   80 |         print(name + &quot; is purring&quot;);
+     81 |     }
+</code></pre>
+</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Argument 1: cannot convert &lt;error&gt; to string</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>     79 |     public void purr() {
+&gt;&gt;   80 |         print(name + &quot; is purring&quot;);
+     81 |     }
+</code></pre>
+</div>
+</div>
+<div class='error-group'>
+<div class='error-line-header'>Line 103</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-undefined'>Undefined variable</span>
+<span class='error-message'>Variable &#39;name&#39; is not defined</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Check variable spelling or ensure it&#39;s declared before use</span>
+</div>
+<pre class='code-context'><code>    102 |     public void play() {
+&gt;&gt;  103 |         print(name + &quot; is playing with yarn&quot;);
+    104 |     }
+</code></pre>
+</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Argument 1: cannot convert &lt;error&gt; to string</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>    102 |     public void play() {
+&gt;&gt;  103 |         print(name + &quot; is playing with yarn&quot;);
+    104 |     }
+</code></pre>
+</div>
+</div>
+<div class='error-group'>
+<div class='error-line-header'>Line 56</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-undefined'>Undefined variable</span>
+<span class='error-message'>Variable &#39;name&#39; is not defined</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Check variable spelling or ensure it&#39;s declared before use</span>
+</div>
+<pre class='code-context'><code>     55 |     public void wagTail() {
+&gt;&gt;   56 |         print(name + &quot; is wagging tail&quot;);
+     57 |     }
+</code></pre>
+</div>
+<div class='error-item'>
+<div class='error-details'>
+<span class='error-type error-type-mismatch'>Type mismatch</span>
+<span class='error-message'>Argument 1: cannot convert &lt;error&gt; to string</span>
+</div>
+<div class='error-suggestion'>
+<span class='suggestion-icon'>💡</span>
+<span>Ensure types are compatible or use explicit type conversion</span>
+</div>
+<pre class='code-context'><code>     55 |     public void wagTail() {
+&gt;&gt;   56 |         print(name + &quot; is wagging tail&quot;);
+     57 |     }
+</code></pre>
+</div>
+</div>
+</div>
+</section>
+<section class='source-code'>
+<h2>Source Code</h2>
+<div class='code-container'>
+<pre class='line-numbers'><code>   1
+   2
+   3
+   4
+   5
+   6
+   7
+   8
+   9
+  10
+  11
+  12
+  13
+  14
+  15
+  16
+  17
+  18
+  19
+  20
+  21
+  22
+  23
+  24
+  25
+  26
+  27
+  28
+  29
+  30
+  31
+  32
+  33
+  34
+  35
+  36
+  37
+  38
+  39
+  40
+  41
+  42
+  43
+  44
+  45
+  46
+  47
+  48
+  49
+  50
+  51
+  52
+  53
+  54
+  55
+  56
+  57
+  58
+  59
+  60
+  61
+  62
+  63
+  64
+  65
+  66
+  67
+  68
+  69
+  70
+  71
+  72
+  73
+  74
+  75
+  76
+  77
+  78
+  79
+  80
+  81
+  82
+  83
+  84
+  85
+  86
+  87
+  88
+  89
+  90
+  91
+  92
+  93
+  94
+  95
+  96
+  97
+  98
+  99
+ 100
+ 101
+ 102
+ 103
+ 104
+ 105
+ 106
+ 107
+ 108
+ 109
+ 110
+ 111
+ 112
+ 113
+ 114
+ 115
+ 116
+ 117
+ 118
+ 119
+ 120
+ 121
+ 122
+ 123
+ 124
+ 125
+ 126
+ 127
+ 128
+ 129
+ 130
+ 131
+ 132
+ 133
+ 134
+ 135
+ 136
+ 137
+ 138
+ 139
+ 140
+ 141
+ 142
+ 143
+ 144
+ 145
+ 146
+ 147
+ 148
+ 149
+ 150
+ 151
+ 152
+ 153
+ 154
+ 155
+ 156
+ 157
+ 158
+ 159
+ 160
+ 161
+ 162
+ 163
+ 164
+ 165
+ 166
+ 167
+ 168
+ 169
+ 170
+ 171
+ 172
+ 173
+ 174
+ 175
+ 176
+ 177
+ 178
+ 179
+ 180
+ 181
+ 182
+ 183
+ 184
+ 185
+ 186
+ 187
+ 188
+ 189
+ 190
+ 191
+ 192
+ 193
+ 194
+ 195
+ 196
+ 197
+ 198
+ 199
+ 200
+ 201
+ 202
+ 203
+ 204
+ 205
+ 206
+ 207
+ 208
+ 209
+ 210
+ 211
+ 212
+ 213
+ 214
+ 215
+ 216
+ 217
+ 218
+ 219
+ 220
+ 221
+ 222
+ 223
+ 224
+ 225
+ 226
+ 227
+ 228
+ 229
+ 230
+ 231
+ 232
+ 233
+ 234
+ 235
+</code></pre>
+<pre class='code-content'><code><span id='line-1'>// test-oop-inheritance.tc</span>
+<span id='line-2'>// Tests inheritance, method overriding, super calls, and polymorphism</span>
+<span id='line-3'></span>
+<span id='line-4'>// Base class</span>
+<span id='line-5'>class Animal {</span>
+<span id='line-6'>    protected string name;</span>
+<span id='line-7'>    protected int age;</span>
+<span id='line-8'>    </span>
+<span id='line-9'>    public Animal(string n, int a) {</span>
+<span id='line-10'>        this.name = n;</span>
+<span id='line-11'>        this.age = a;</span>
+<span id='line-12'>    }</span>
+<span id='line-13'>    </span>
+<span id='line-14'>    public string getName() {</span>
+<span id='line-15'>        return name;</span>
+<span id='line-16'>    }</span>
+<span id='line-17'>    </span>
+<span id='line-18'>    public int getAge() {</span>
+<span id='line-19'>        return age;</span>
+<span id='line-20'>    }</span>
+<span id='line-21'>    </span>
+<span id='line-22'>    public void makeSound() {</span>
+<span id='line-23'>        print(&quot;Some generic animal sound&quot;);</span>
+<span id='line-24'>    }</span>
+<span id='line-25'>    </span>
+<span id='line-26'>    public string getInfo() {</span>
+<span id='line-27'>        return &quot;Animal: &quot; + name + &quot;, age &quot; + age;</span>
+<span id='line-28'>    }</span>
+<span id='line-29'>    </span>
+<span id='line-30'>    public void sleep() {</span>
+<span id='line-31'>        print(name + &quot; is sleeping&quot;);</span>
+<span id='line-32'>    }</span>
+<span id='line-33'>}</span>
+<span id='line-34'></span>
+<span id='line-35'>// Derived class</span>
+<span id='line-36'>class Dog extends Animal {</span>
+<span id='line-37'>    private string breed;</span>
+<span id='line-38'>    </span>
+<span id='line-39'>    public Dog(string n, int a, string b) {</span>
+<span id='line-40'>        super(n, a);  // Call parent constructor</span>
+<span id='line-41'>        this.breed = b;</span>
+<span id='line-42'>    }</span>
+<span id='line-43'>    </span>
+<span id='line-44'>    // Method override</span>
+<span id='line-45'>    public void makeSound() {</span>
+<span id='line-46'>        print(&quot;Woof! Woof!&quot;);</span>
+<span id='line-47'>    }</span>
+<span id='line-48'>    </span>
+<span id='line-49'>    // Override with super call</span>
+<span id='line-50'>    public string getInfo() {</span>
+<span id='line-51'>        return super.getInfo() + &quot;, breed: &quot; + breed;</span>
+<span id='line-52'>    }</span>
+<span id='line-53'>    </span>
+<span id='line-54'>    // New method specific to Dog</span>
+<span id='line-55'>    public void wagTail() {</span>
+<span class='error-line' id='line-56'>        print(name + &quot; is wagging tail&quot;);</span>
+<span id='line-57'>    }</span>
+<span id='line-58'>    </span>
+<span id='line-59'>    public string getBreed() {</span>
+<span id='line-60'>        return breed;</span>
+<span id='line-61'>    }</span>
+<span id='line-62'>}</span>
+<span id='line-63'></span>
+<span id='line-64'>// Another derived class</span>
+<span id='line-65'>class Cat extends Animal {</span>
+<span id='line-66'>    private boolean isIndoor;</span>
+<span id='line-67'>    </span>
+<span id='line-68'>    public Cat(string n, int a, boolean indoor) {</span>
+<span id='line-69'>        super(n, a);</span>
+<span id='line-70'>        this.isIndoor = indoor;</span>
+<span id='line-71'>    }</span>
+<span id='line-72'>    </span>
+<span id='line-73'>    // Method override</span>
+<span id='line-74'>    public void makeSound() {</span>
+<span id='line-75'>        print(&quot;Meow!&quot;);</span>
+<span id='line-76'>    }</span>
+<span id='line-77'>    </span>
+<span id='line-78'>    // New method</span>
+<span id='line-79'>    public void purr() {</span>
+<span class='error-line' id='line-80'>        print(name + &quot; is purring&quot;);</span>
+<span id='line-81'>    }</span>
+<span id='line-82'>    </span>
+<span id='line-83'>    public boolean getIsIndoor() {</span>
+<span id='line-84'>        return isIndoor;</span>
+<span id='line-85'>    }</span>
+<span id='line-86'>}</span>
+<span id='line-87'></span>
+<span id='line-88'>// Multi-level inheritance</span>
+<span id='line-89'>class Kitten extends Cat {</span>
+<span id='line-90'>    private string furColor;</span>
+<span id='line-91'>    </span>
+<span id='line-92'>    public Kitten(string n, int a, boolean indoor, string color) {</span>
+<span id='line-93'>        super(n, a, indoor);</span>
+<span id='line-94'>        this.furColor = color;</span>
+<span id='line-95'>    }</span>
+<span id='line-96'>    </span>
+<span id='line-97'>    // Override again</span>
+<span id='line-98'>    public void makeSound() {</span>
+<span id='line-99'>        print(&quot;Mew mew!&quot;);</span>
+<span id='line-100'>    }</span>
+<span id='line-101'>    </span>
+<span id='line-102'>    public void play() {</span>
+<span class='error-line' id='line-103'>        print(name + &quot; is playing with yarn&quot;);</span>
+<span id='line-104'>    }</span>
+<span id='line-105'>}</span>
+<span id='line-106'></span>
+<span id='line-107'>// Abstract class concept (using regular class as abstract not directly supported)</span>
+<span id='line-108'>class Shape {</span>
+<span id='line-109'>    protected string color;</span>
+<span id='line-110'>    </span>
+<span id='line-111'>    public Shape(string c) {</span>
+<span id='line-112'>        this.color = c;</span>
+<span id='line-113'>    }</span>
+<span id='line-114'>    </span>
+<span id='line-115'>    // &quot;Abstract&quot; method - should be overridden</span>
+<span id='line-116'>    public float getArea() {</span>
+<span id='line-117'>        print(&quot;Error: getArea() must be overridden&quot;);</span>
+<span id='line-118'>        return 0.0;</span>
+<span id='line-119'>    }</span>
+<span id='line-120'>    </span>
+<span id='line-121'>    public string getColor() {</span>
+<span id='line-122'>        return color;</span>
+<span id='line-123'>    }</span>
+<span id='line-124'>}</span>
+<span id='line-125'></span>
+<span id='line-126'>class Rectangle extends Shape {</span>
+<span id='line-127'>    private float width;</span>
+<span id='line-128'>    private float height;</span>
+<span id='line-129'>    </span>
+<span id='line-130'>    public Rectangle(string c, float w, float h) {</span>
+<span id='line-131'>        super(c);</span>
+<span id='line-132'>        this.width = w;</span>
+<span id='line-133'>        this.height = h;</span>
+<span id='line-134'>    }</span>
+<span id='line-135'>    </span>
+<span id='line-136'>    // Override &quot;abstract&quot; method</span>
+<span id='line-137'>    public float getArea() {</span>
+<span id='line-138'>        return width * height;</span>
+<span id='line-139'>    }</span>
+<span id='line-140'>}</span>
+<span id='line-141'></span>
+<span id='line-142'>class Circle extends Shape {</span>
+<span id='line-143'>    private float radius;</span>
+<span id='line-144'>    private static final float PI = 3.14159;</span>
+<span id='line-145'>    </span>
+<span id='line-146'>    public Circle(string c, float r) {</span>
+<span id='line-147'>        super(c);</span>
+<span id='line-148'>        this.radius = r;</span>
+<span id='line-149'>    }</span>
+<span id='line-150'>    </span>
+<span id='line-151'>    public float getArea() {</span>
+<span id='line-152'>        return PI * radius * radius;</span>
+<span id='line-153'>    }</span>
+<span id='line-154'>}</span>
+<span id='line-155'></span>
+<span id='line-156'>void testInheritance() {</span>
+<span id='line-157'>    // Create objects</span>
+<span id='line-158'>    Animal genericAnimal = new Animal(&quot;Generic&quot;, 5);</span>
+<span id='line-159'>    Dog myDog = new Dog(&quot;Buddy&quot;, 3, &quot;Golden Retriever&quot;);</span>
+<span id='line-160'>    Cat myCat = new Cat(&quot;Whiskers&quot;, 2, true);</span>
+<span id='line-161'>    Kitten myKitten = new Kitten(&quot;Fluffy&quot;, 1, true, &quot;orange&quot;);</span>
+<span id='line-162'>    </span>
+<span id='line-163'>    // Test method calls</span>
+<span id='line-164'>    genericAnimal.makeSound();  // Generic sound</span>
+<span id='line-165'>    myDog.makeSound();          // Woof!</span>
+<span id='line-166'>    myCat.makeSound();          // Meow!</span>
+<span id='line-167'>    myKitten.makeSound();       // Mew mew!</span>
+<span id='line-168'>    </span>
+<span id='line-169'>    // Test inherited methods</span>
+<span id='line-170'>    string dogName = myDog.getName();     // Inherited from Animal</span>
+<span id='line-171'>    int catAge = myCat.getAge();          // Inherited from Animal</span>
+<span id='line-172'>    myDog.sleep();                        // Inherited from Animal</span>
+<span id='line-173'>    </span>
+<span id='line-174'>    // Test specific methods</span>
+<span id='line-175'>    myDog.wagTail();                      // Dog-specific</span>
+<span id='line-176'>    myCat.purr();                         // Cat-specific</span>
+<span id='line-177'>    myKitten.play();                      // Kitten-specific</span>
+<span id='line-178'>    </span>
+<span id='line-179'>    // Test polymorphism</span>
+<span id='line-180'>    Animal animal1 = myDog;               // Upcast - OK</span>
+<span id='line-181'>    Animal animal2 = myCat;               // Upcast - OK</span>
+<span id='line-182'>    </span>
+<span id='line-183'>    animal1.makeSound();                  // Calls Dog&#39;s makeSound()</span>
+<span id='line-184'>    animal2.makeSound();                  // Calls Cat&#39;s makeSound()</span>
+<span id='line-185'>    </span>
+<span id='line-186'>    // Test downcast (if supported)</span>
+<span id='line-187'>    // Dog dog2 = (Dog) animal1;          // Downcast - should be OK</span>
+<span id='line-188'>    // Cat cat2 = (Cat) animal1;          // ERROR: Invalid cast</span>
+<span id='line-189'>    </span>
+<span id='line-190'>    // Test instanceof (if supported)</span>
+<span id='line-191'>    // boolean isDog = animal1 instanceof Dog;     // true</span>
+<span id='line-192'>    // boolean isCat = animal1 instanceof Cat;     // false</span>
+<span id='line-193'>    </span>
+<span id='line-194'>    // Test method resolution</span>
+<span id='line-195'>    string info = myDog.getInfo();        // Calls overridden method with super</span>
+<span id='line-196'>}</span>
+<span id='line-197'></span>
+<span id='line-198'>void testShapeHierarchy() {</span>
+<span id='line-199'>    Shape[] shapes = new Shape[3];</span>
+<span id='line-200'>    shapes[0] = new Rectangle(&quot;red&quot;, 5.0, 3.0);</span>
+<span id='line-201'>    shapes[1] = new Circle(&quot;blue&quot;, 2.5);</span>
+<span id='line-202'>    shapes[2] = new Rectangle(&quot;green&quot;, 4.0, 4.0);</span>
+<span id='line-203'>    </span>
+<span id='line-204'>    // Polymorphic method calls</span>
+<span id='line-205'>    for (int i = 0; i &lt; 3; i++) {</span>
+<span id='line-206'>        float area = shapes[i].getArea();  // Calls appropriate overridden method</span>
+<span id='line-207'>        string color = shapes[i].getColor();</span>
+<span id='line-208'>        print(&quot;Shape &quot; + i + &quot; (&quot; + color + &quot;) has area: &quot; + area);</span>
+<span id='line-209'>    }</span>
+<span id='line-210'>}</span>
+<span id='line-211'></span>
+<span id='line-212'>// Test inheritance errors</span>
+<span id='line-213'>void testInheritanceErrors() {</span>
+<span id='line-214'>    // Test circular inheritance (should be caught at compile time)</span>
+<span id='line-215'>    // class A extends B { }  // ERROR if B extends A</span>
+<span id='line-216'>    </span>
+<span id='line-217'>    // Test extending undefined class</span>
+<span id='line-218'>    // class BadDog extends UndefinedAnimal { }  // ERROR: Undefined class</span>
+<span id='line-219'>    </span>
+<span id='line-220'>    // Test accessing private parent fields</span>
+<span id='line-221'>    Dog d = new Dog(&quot;Rex&quot;, 4, &quot;Beagle&quot;);</span>
+<span id='line-222'>    // string parentName = d.name;  // OK - protected in parent</span>
+<span id='line-223'>    // int parentAge = d.age;       // OK - protected in parent</span>
+<span id='line-224'>    </span>
+<span id='line-225'>    // Test invalid super usage</span>
+<span id='line-226'>    // super.makeSound();  // ERROR: super used outside of class</span>
+<span id='line-227'>}</span>
+<span id='line-228'></span>
+<span id='line-229'>int main() {</span>
+<span id='line-230'>    testInheritance();</span>
+<span id='line-231'>    testShapeHierarchy();</span>
+<span id='line-232'>    testInheritanceErrors();</span>
+<span id='line-233'>    </span>
+<span id='line-234'>    return 0;</span>
+<span id='line-235'>}</span>
+</code></pre>
+</div>
+</section>
+<section class='symbol-table'>
+<h2>Symbol Table</h2>
+<div class='table-container'>
+<div class='scope-block'>
+  <div class='scope-header'>Scope: global</div>
+  <table class='symbol-table-content'>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Kind</th>
+        <th>Line</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>print</td>
+        <td>(string) -&gt; void</td>
+        <td>Function</td>
+        <td>0</td>
+      </tr>
+      <tr>
+        <td>println</td>
+        <td>(string) -&gt; void</td>
+        <td>Function</td>
+        <td>0</td>
+      </tr>
+      <tr>
+        <td>Animal</td>
+        <td>Animal</td>
+        <td>Class</td>
+        <td>5</td>
+      </tr>
+      <tr>
+        <td>Dog</td>
+        <td>Dog</td>
+        <td>Class</td>
+        <td>36</td>
+      </tr>
+      <tr>
+        <td>Cat</td>
+        <td>Cat</td>
+        <td>Class</td>
+        <td>65</td>
+      </tr>
+      <tr>
+        <td>Kitten</td>
+        <td>Kitten</td>
+        <td>Class</td>
+        <td>89</td>
+      </tr>
+      <tr>
+        <td>Shape</td>
+        <td>Shape</td>
+        <td>Class</td>
+        <td>108</td>
+      </tr>
+      <tr>
+        <td>Rectangle</td>
+        <td>Rectangle</td>
+        <td>Class</td>
+        <td>126</td>
+      </tr>
+      <tr>
+        <td>Circle</td>
+        <td>Circle</td>
+        <td>Class</td>
+        <td>142</td>
+      </tr>
+      <tr>
+        <td>testInheritance</td>
+        <td>() -&gt; void</td>
+        <td>Function</td>
+        <td>156</td>
+      </tr>
+      <tr>
+        <td>testShapeHierarchy</td>
+        <td>() -&gt; void</td>
+        <td>Function</td>
+        <td>198</td>
+      </tr>
+      <tr>
+        <td>testInheritanceErrors</td>
+        <td>() -&gt; void</td>
+        <td>Function</td>
+        <td>213</td>
+      </tr>
+      <tr>
+        <td>main</td>
+        <td>() -&gt; int</td>
+        <td>Function</td>
+        <td>229</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class='scope-block'>
+    <div class='scope-header'>Scope: Animal_class</div>
+    <table class='symbol-table-content'>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Kind</th>
+          <th>Line</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>this</td>
+          <td>Animal</td>
+          <td>Variable</td>
+          <td>0</td>
+        </tr>
+        <tr>
+          <td>name</td>
+          <td>string</td>
+          <td>Variable</td>
+          <td>6</td>
+        </tr>
+        <tr>
+          <td>age</td>
+          <td>int</td>
+          <td>Variable</td>
+          <td>7</td>
+        </tr>
+        <tr>
+          <td>getName</td>
+          <td>() -&gt; string</td>
+          <td>Function</td>
+          <td>14</td>
+        </tr>
+        <tr>
+          <td>getAge</td>
+          <td>() -&gt; int</td>
+          <td>Function</td>
+          <td>18</td>
+        </tr>
+        <tr>
+          <td>makeSound</td>
+          <td>() -&gt; void</td>
+          <td>Function</td>
+          <td>22</td>
+        </tr>
+        <tr>
+          <td>getInfo</td>
+          <td>() -&gt; string</td>
+          <td>Function</td>
+          <td>26</td>
+        </tr>
+        <tr>
+          <td>sleep</td>
+          <td>() -&gt; void</td>
+          <td>Function</td>
+          <td>30</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: Animal_constructor</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>n</td>
+            <td>string</td>
+            <td>Variable</td>
+            <td>9</td>
+          </tr>
+          <tr>
+            <td>a</td>
+            <td>int</td>
+            <td>Variable</td>
+            <td>9</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: getName_method</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_0</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: getAge_method</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_0</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: makeSound_method</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_0</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: getInfo_method</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_0</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: sleep_method</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_0</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class='scope-block'>
+    <div class='scope-header'>Scope: Dog_class</div>
+    <table class='symbol-table-content'>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Kind</th>
+          <th>Line</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>this</td>
+          <td>Dog</td>
+          <td>Variable</td>
+          <td>0</td>
+        </tr>
+        <tr>
+          <td>super</td>
+          <td>Animal</td>
+          <td>Variable</td>
+          <td>0</td>
+        </tr>
+        <tr>
+          <td>breed</td>
+          <td>string</td>
+          <td>Variable</td>
+          <td>37</td>
+        </tr>
+        <tr>
+          <td>makeSound</td>
+          <td>() -&gt; void</td>
+          <td>Function</td>
+          <td>45</td>
+        </tr>
+        <tr>
+          <td>getInfo</td>
+          <td>() -&gt; string</td>
+          <td>Function</td>
+          <td>50</td>
+        </tr>
+        <tr>
+          <td>wagTail</td>
+          <td>() -&gt; void</td>
+          <td>Function</td>
+          <td>55</td>
+        </tr>
+        <tr>
+          <td>getBreed</td>
+          <td>() -&gt; string</td>
+          <td>Function</td>
+          <td>59</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: Dog_constructor</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>n</td>
+            <td>string</td>
+            <td>Variable</td>
+            <td>39</td>
+          </tr>
+          <tr>
+            <td>a</td>
+            <td>int</td>
+            <td>Variable</td>
+            <td>39</td>
+          </tr>
+          <tr>
+            <td>b</td>
+            <td>string</td>
+            <td>Variable</td>
+            <td>39</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: makeSound_method</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_0</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: getInfo_method</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_0</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: wagTail_method</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_0</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: getBreed_method</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_0</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class='scope-block'>
+    <div class='scope-header'>Scope: Cat_class</div>
+    <table class='symbol-table-content'>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Kind</th>
+          <th>Line</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>this</td>
+          <td>Cat</td>
+          <td>Variable</td>
+          <td>0</td>
+        </tr>
+        <tr>
+          <td>super</td>
+          <td>Animal</td>
+          <td>Variable</td>
+          <td>0</td>
+        </tr>
+        <tr>
+          <td>isIndoor</td>
+          <td>boolean</td>
+          <td>Variable</td>
+          <td>66</td>
+        </tr>
+        <tr>
+          <td>makeSound</td>
+          <td>() -&gt; void</td>
+          <td>Function</td>
+          <td>74</td>
+        </tr>
+        <tr>
+          <td>purr</td>
+          <td>() -&gt; void</td>
+          <td>Function</td>
+          <td>79</td>
+        </tr>
+        <tr>
+          <td>getIsIndoor</td>
+          <td>() -&gt; boolean</td>
+          <td>Function</td>
+          <td>83</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: Cat_constructor</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>n</td>
+            <td>string</td>
+            <td>Variable</td>
+            <td>68</td>
+          </tr>
+          <tr>
+            <td>a</td>
+            <td>int</td>
+            <td>Variable</td>
+            <td>68</td>
+          </tr>
+          <tr>
+            <td>indoor</td>
+            <td>boolean</td>
+            <td>Variable</td>
+            <td>68</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: makeSound_method</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_0</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: purr_method</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_0</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: getIsIndoor_method</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_0</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class='scope-block'>
+    <div class='scope-header'>Scope: Kitten_class</div>
+    <table class='symbol-table-content'>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Kind</th>
+          <th>Line</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>this</td>
+          <td>Kitten</td>
+          <td>Variable</td>
+          <td>0</td>
+        </tr>
+        <tr>
+          <td>super</td>
+          <td>Cat</td>
+          <td>Variable</td>
+          <td>0</td>
+        </tr>
+        <tr>
+          <td>furColor</td>
+          <td>string</td>
+          <td>Variable</td>
+          <td>90</td>
+        </tr>
+        <tr>
+          <td>makeSound</td>
+          <td>() -&gt; void</td>
+          <td>Function</td>
+          <td>98</td>
+        </tr>
+        <tr>
+          <td>play</td>
+          <td>() -&gt; void</td>
+          <td>Function</td>
+          <td>102</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: Kitten_constructor</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>n</td>
+            <td>string</td>
+            <td>Variable</td>
+            <td>92</td>
+          </tr>
+          <tr>
+            <td>a</td>
+            <td>int</td>
+            <td>Variable</td>
+            <td>92</td>
+          </tr>
+          <tr>
+            <td>indoor</td>
+            <td>boolean</td>
+            <td>Variable</td>
+            <td>92</td>
+          </tr>
+          <tr>
+            <td>color</td>
+            <td>string</td>
+            <td>Variable</td>
+            <td>92</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: makeSound_method</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_0</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: play_method</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_0</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class='scope-block'>
+    <div class='scope-header'>Scope: Shape_class</div>
+    <table class='symbol-table-content'>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Kind</th>
+          <th>Line</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>this</td>
+          <td>Shape</td>
+          <td>Variable</td>
+          <td>0</td>
+        </tr>
+        <tr>
+          <td>color</td>
+          <td>string</td>
+          <td>Variable</td>
+          <td>109</td>
+        </tr>
+        <tr>
+          <td>getArea</td>
+          <td>() -&gt; float</td>
+          <td>Function</td>
+          <td>116</td>
+        </tr>
+        <tr>
+          <td>getColor</td>
+          <td>() -&gt; string</td>
+          <td>Function</td>
+          <td>121</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: Shape_constructor</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>c</td>
+            <td>string</td>
+            <td>Variable</td>
+            <td>111</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: getArea_method</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_0</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: getColor_method</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_0</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class='scope-block'>
+    <div class='scope-header'>Scope: Rectangle_class</div>
+    <table class='symbol-table-content'>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Kind</th>
+          <th>Line</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>this</td>
+          <td>Rectangle</td>
+          <td>Variable</td>
+          <td>0</td>
+        </tr>
+        <tr>
+          <td>super</td>
+          <td>Shape</td>
+          <td>Variable</td>
+          <td>0</td>
+        </tr>
+        <tr>
+          <td>width</td>
+          <td>float</td>
+          <td>Variable</td>
+          <td>127</td>
+        </tr>
+        <tr>
+          <td>height</td>
+          <td>float</td>
+          <td>Variable</td>
+          <td>128</td>
+        </tr>
+        <tr>
+          <td>getArea</td>
+          <td>() -&gt; float</td>
+          <td>Function</td>
+          <td>137</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: Rectangle_constructor</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>c</td>
+            <td>string</td>
+            <td>Variable</td>
+            <td>130</td>
+          </tr>
+          <tr>
+            <td>w</td>
+            <td>float</td>
+            <td>Variable</td>
+            <td>130</td>
+          </tr>
+          <tr>
+            <td>h</td>
+            <td>float</td>
+            <td>Variable</td>
+            <td>130</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: getArea_method</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_0</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class='scope-block'>
+    <div class='scope-header'>Scope: Circle_class</div>
+    <table class='symbol-table-content'>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Kind</th>
+          <th>Line</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>this</td>
+          <td>Circle</td>
+          <td>Variable</td>
+          <td>0</td>
+        </tr>
+        <tr>
+          <td>super</td>
+          <td>Shape</td>
+          <td>Variable</td>
+          <td>0</td>
+        </tr>
+        <tr>
+          <td>radius</td>
+          <td>float</td>
+          <td>Variable</td>
+          <td>143</td>
+        </tr>
+        <tr>
+          <td>PI</td>
+          <td>float</td>
+          <td>Final Static Variable</td>
+          <td>144</td>
+        </tr>
+        <tr>
+          <td>getArea</td>
+          <td>() -&gt; float</td>
+          <td>Function</td>
+          <td>151</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: Circle_constructor</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>c</td>
+            <td>string</td>
+            <td>Variable</td>
+            <td>146</td>
+          </tr>
+          <tr>
+            <td>r</td>
+            <td>float</td>
+            <td>Variable</td>
+            <td>146</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: getArea_method</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: block_0</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class='scope-block'>
+    <div class='scope-header'>Scope: testInheritance_method</div>
+    <table class='symbol-table-content'>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Kind</th>
+          <th>Line</th>
+        </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: block_0</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>genericAnimal</td>
+            <td>Animal</td>
+            <td>Variable</td>
+            <td>158</td>
+          </tr>
+          <tr>
+            <td>myDog</td>
+            <td>Dog</td>
+            <td>Variable</td>
+            <td>159</td>
+          </tr>
+          <tr>
+            <td>myCat</td>
+            <td>Cat</td>
+            <td>Variable</td>
+            <td>160</td>
+          </tr>
+          <tr>
+            <td>myKitten</td>
+            <td>Kitten</td>
+            <td>Variable</td>
+            <td>161</td>
+          </tr>
+          <tr>
+            <td>dogName</td>
+            <td>string</td>
+            <td>Variable</td>
+            <td>170</td>
+          </tr>
+          <tr>
+            <td>catAge</td>
+            <td>int</td>
+            <td>Variable</td>
+            <td>171</td>
+          </tr>
+          <tr>
+            <td>animal1</td>
+            <td>Animal</td>
+            <td>Variable</td>
+            <td>180</td>
+          </tr>
+          <tr>
+            <td>animal2</td>
+            <td>Animal</td>
+            <td>Variable</td>
+            <td>181</td>
+          </tr>
+          <tr>
+            <td>info</td>
+            <td>string</td>
+            <td>Variable</td>
+            <td>195</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class='scope-block'>
+    <div class='scope-header'>Scope: testShapeHierarchy_method</div>
+    <table class='symbol-table-content'>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Kind</th>
+          <th>Line</th>
+        </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: block_0</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>shapes</td>
+            <td>Shape[]</td>
+            <td>Variable</td>
+            <td>199</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class='scope-block'>
+        <div class='scope-header'>Scope: for-loop</div>
+        <table class='symbol-table-content'>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Kind</th>
+              <th>Line</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>i</td>
+              <td>int</td>
+              <td>Variable</td>
+              <td>205</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class='scope-block'>
+          <div class='scope-header'>Scope: block_0</div>
+          <table class='symbol-table-content'>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Kind</th>
+                <th>Line</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>area</td>
+                <td>float</td>
+                <td>Variable</td>
+                <td>206</td>
+              </tr>
+              <tr>
+                <td>color</td>
+                <td>string</td>
+                <td>Variable</td>
+                <td>207</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class='scope-block'>
+    <div class='scope-header'>Scope: testInheritanceErrors_method</div>
+    <table class='symbol-table-content'>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Kind</th>
+          <th>Line</th>
+        </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: block_0</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>d</td>
+            <td>Dog</td>
+            <td>Variable</td>
+            <td>221</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class='scope-block'>
+    <div class='scope-header'>Scope: main_method</div>
+    <table class='symbol-table-content'>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Kind</th>
+          <th>Line</th>
+        </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
+    <div class='scope-block'>
+      <div class='scope-header'>Scope: block_0</div>
+      <table class='symbol-table-content'>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Kind</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</div>
+</section>
+<footer>
+<p>Generated by EECS4302 Type Checker Compiler</p>
+</footer>
+</body>
+</html>

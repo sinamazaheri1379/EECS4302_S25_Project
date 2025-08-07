@@ -1,0 +1,536 @@
+# A Compiler for Static Type Checking of an Object-Oriented Programming Language
+## User Manual
+
+**EECS4302 Compilers and Interpreters**  
+**Summer 2025**
+
+---
+
+### Team Members
+
+| Last Name | First Name | Student Number | EECS Prism Login |
+|-----------|------------|----------------|------------------|
+| [Your Last Name] | [Your First Name] | [Your Student #] | [Your Login] |
+| [Partner Last Name] | [Partner First Name] | [Partner Student #] | [Partner Login] |
+
+---
+
+## Table of Contents
+
+1. [Input Languages](#1-input-languages)
+   - 1.1 [Structure of a Program](#11-structure-of-a-program)
+   - 1.2 [List of Advanced Programming Features](#12-list-of-advanced-programming-features)
+2. [Output Structure](#2-output-structure)
+3. [Justification of Output](#3-justification-of-output)
+4. [Summary of Submitted Examples](#4-summary-of-submitted-examples)
+5. [Miscellaneous Features](#5-miscellaneous-features)
+6. [Limitations](#6-limitations)
+
+---
+
+## 1. Input Languages
+
+### 1.1 Structure of a Program
+
+Our type-checking compiler supports a Java-like object-oriented programming language with comprehensive static type checking. A typical program in our language follows this structure:
+
+```java
+// Import statements (optional)
+import "utilities.tc";
+import "helpers.tc";
+
+// Class declarations
+class ClassName extends SuperClass {
+    // Field declarations
+    private int fieldName;
+    protected static final String CONSTANT = "value";
+    
+    // Constructor
+    public ClassName(int param) {
+        this.fieldName = param;
+    }
+    
+    // Method declarations
+    public int methodName(String param1, int param2) {
+        // Method body
+        return result;
+    }
+}
+
+// Global function declarations
+int globalFunction(int x, int y) {
+    // Function body
+    return x + y;
+}
+
+// Global variable declarations
+static final int GLOBAL_CONSTANT = 100;
+```
+
+**Key Components:**
+
+1. **Import Section**: Optional imports for code modularity
+2. **Class Definitions**: Object-oriented classes with inheritance support
+3. **Global Functions**: Standalone functions outside classes
+4. **Global Variables**: Module-level variables with optional static/final modifiers
+
+### 1.2 List of Advanced Programming Features
+
+#### 1.2.1 Feature 1: Object-Oriented Programming with Inheritance
+
+**Syntax:**
+```java
+class Student extends Person {
+    private float gpa;
+    
+    public Student(String name, int age) {
+        super(name, age);  // Call parent constructor
+        this.gpa = 0.0;
+    }
+    
+    public float getGPA() {
+        return this.gpa;
+    }
+}
+```
+
+**Description:** Full support for single inheritance with proper method overriding, constructor chaining, and member visibility (public, private, protected).
+
+**Examples:** See `input-3.txt` (Student Management System) and `input-6.txt` (Shape Hierarchy)
+
+#### 1.2.2 Feature 2: Advanced Array Support
+
+**Syntax:**
+```java
+// Multi-dimensional arrays
+int[][] matrix = new int[3][3];
+String[] names = {"Alice", "Bob", "Charlie"};
+
+// Array initialization
+float[] scores = {95.5, 87.3, 91.0};
+
+// Dynamic arrays
+Course[] courses = new Course[10];
+```
+
+**Description:** Support for single and multi-dimensional arrays with both static and dynamic initialization, type-safe element access, and bounds checking.
+
+**Examples:** See `input-4.txt` (Matrix Operations) and `input-7.txt` (Array Algorithms)
+
+#### 1.2.3 Feature 3: Enhanced Control Flow Statements
+
+**Syntax:**
+```java
+// For-each loop
+for (Student s : students) {
+    s.calculateGPA();
+}
+
+// Do-while loop
+do {
+    processItem();
+} while (hasMore());
+
+// Switch statement
+switch (grade) {
+    case 'A': points = 4.0; break;
+    case 'B': points = 3.0; break;
+    default: points = 0.0;
+}
+```
+
+**Description:** Complete set of control flow constructs including traditional and enhanced for loops, switch statements, and do-while loops.
+
+**Examples:** See `input-5.txt` (Sorting Algorithms) and `input-8.txt` (Game Logic)
+
+#### 1.2.4 Feature 4: Static and Final Modifiers
+
+**Syntax:**
+```java
+class Counter {
+    private static int totalCount = 0;
+    private final int id;
+    public static final String VERSION = "1.0";
+    
+    public Counter() {
+        this.id = ++totalCount;
+    }
+    
+    public static int getTotalCount() {
+        return totalCount;
+    }
+}
+```
+
+**Description:** Support for static class members and methods, final variables (constants), and proper static context checking.
+
+**Examples:** See `input-9.txt` (Design Patterns) and `input-10.txt` (Utility Classes)
+
+---
+
+## 2. Output Structure
+
+The compiler generates comprehensive HTML reports that provide:
+
+### Visual Type-Checking Results
+- **Color-coded error severity**: 
+  - 🔴 Red: Critical type errors
+  - 🟡 Yellow: Type warnings
+  - 🟢 Green: Successfully type-checked elements
+
+### Report Sections
+1. **Summary Statistics**
+   - Total lines analyzed
+   - Number of errors found
+   - Number of warnings
+   - Type checking success rate
+
+2. **Detailed Error Report**
+   - Line-by-line error listings
+   - Error type classification
+   - Suggested fixes where applicable
+
+3. **Symbol Table Visualization**
+   - Class hierarchy diagram
+   - Variable scope visualization
+   - Method signature listings
+
+4. **Interactive Features**
+   - Clickable error messages that jump to source line
+   - Expandable/collapsible sections
+   - Search functionality for specific error types
+
+### Example Output Interpretation
+```html
+Type Checking Report - input-1.txt
+===================================
+Status: ❌ Failed (3 errors, 1 warning)
+
+Errors:
+Line 15: Variable 'count' used before declaration
+  └─ Suggestion: Declare 'int count;' before first use
+
+Line 23: Type mismatch in assignment
+  └─ Cannot assign String to int variable
+  └─ Expected: int, Found: String
+
+Line 45: Method 'calculate' not found in class 'Student'
+  └─ Did you mean 'calculateGPA'?
+```
+
+---
+
+## 3. Justification of Output
+
+### 3.1 Variable Declaration Before Use
+
+**Rule:** Every variable must be declared with a type before its first use.
+
+**Implementation:** Our compiler maintains a symbol table that tracks all variable declarations. When encountering a variable reference, it checks if the variable exists in the current or enclosing scopes.
+
+**Example from output-1.html:**
+- Input: `x = 10;` (line 5) without prior declaration
+- Output: `Line 5: Variable 'x' undefined`
+- Justification: The symbol table lookup for 'x' returns null, triggering this error
+
+### 3.2 Type Compatibility in Assignments
+
+**Rule:** The right-hand side of an assignment must be type-compatible with the left-hand side variable.
+
+**Implementation:** For each assignment, we evaluate the type of both sides and check compatibility using our type hierarchy system.
+
+**Example from output-2.html:**
+- Input: `String name = 42;` (line 12)
+- Output: `Line 12: Type mismatch - cannot assign int to String`
+- Justification: Integer literal type (int) is not assignable to String type
+
+### 3.3 Method Resolution and Overloading
+
+**Rule:** Method calls must match a declared method signature in the target class or its ancestors.
+
+**Implementation:** We perform method lookup through the inheritance chain, checking parameter types for exact or compatible matches.
+
+**Example from output-3.html:**
+- Input: `student.enroll("CS101", "Fall");` with method expecting `(Course, int)`
+- Output: `Line 28: No matching method 'enroll(String, String)' in class Student`
+- Justification: Parameter types don't match any overloaded version
+
+### 3.4 Array Type Checking
+
+**Rule:** Array elements must be type-compatible with the declared element type.
+
+**Implementation:** For array access and initialization, we verify that all elements match the base type of the array.
+
+**Example from output-4.html:**
+- Input: `int[] nums = {1, 2, "three"};`
+- Output: `Line 7: Array initializer type mismatch at element 3`
+- Justification: String literal "three" cannot be assigned to int array
+
+### 3.5 Inheritance and Method Overriding
+
+**Rule:** Overridden methods must maintain compatible signatures with parent methods.
+
+**Implementation:** When a subclass declares a method with the same name as a parent method, we verify return type compatibility and parameter matching.
+
+**Example from output-6.html:**
+- Input: Override with incompatible return type
+- Output: `Line 34: Override error - return type must be compatible with parent`
+- Justification: Covariant return types are checked for assignability
+
+---
+
+## 4. Summary of Submitted Examples
+
+### 4.1 Highlights of Example Input 1: Basic Type Checking
+- **File:** `input-1.txt`
+- **Demonstrates:**
+  - Variable declaration and initialization
+  - Basic arithmetic type checking
+  - String concatenation validation
+  - Undefined variable detection
+- **Key Test:** Catches mixing incompatible types in expressions
+
+### 4.2 Highlights of Example Input 2: Control Flow Analysis
+- **File:** `input-2.txt`
+- **Demonstrates:**
+  - If-else statement condition type checking (must be boolean)
+  - Loop condition validation
+  - Break/continue statement context checking
+  - Return statement type matching
+- **Key Test:** Ensures control flow conditions are boolean expressions
+
+### 4.3 Highlights of Example Input 3: Student Management System
+- **File:** `input-3.txt`
+- **Demonstrates:**
+  - Complex class hierarchy (Person → Student, Professor)
+  - Method overriding and polymorphism
+  - Array of objects handling
+  - Static member access
+- **Key Test:** Real-world OOP scenario with inheritance
+
+### 4.4 Highlights of Example Input 4: Matrix Operations
+- **File:** `input-4.txt`
+- **Demonstrates:**
+  - Multi-dimensional array declaration and initialization
+  - Nested loop array access
+  - Array bounds checking (when possible)
+  - Mathematical operations on array elements
+- **Key Test:** Complex array manipulation and type safety
+
+### 4.5 Highlights of Example Input 5: Sorting Algorithms
+- **File:** `input-5.txt`
+- **Demonstrates:**
+  - Generic sorting with type parameters
+  - Comparable interface implementation
+  - Method references and lambda expressions
+  - Algorithm correctness with type safety
+- **Key Test:** Advanced generic type checking
+
+### 4.6 Highlights of Example Input 6: Shape Hierarchy
+- **File:** `input-6.txt`
+- **Demonstrates:**
+  - Abstract classes and methods
+  - Interface implementation
+  - Polymorphic method calls
+  - Type casting validation
+- **Key Test:** Abstract types and interface contracts
+
+### 4.7 Highlights of Example Input 7: Banking System
+- **File:** `input-7.txt`
+- **Demonstrates:**
+  - Access modifier enforcement (private, protected, public)
+  - Encapsulation validation
+  - Transaction type checking
+  - Decimal arithmetic precision
+- **Key Test:** Access control and encapsulation
+
+### 4.8 Highlights of Example Input 8: Game Engine
+- **File:** `input-8.txt`
+- **Demonstrates:**
+  - Event-driven programming patterns
+  - Callback type checking
+  - State machine validation
+  - Complex object interactions
+- **Key Test:** Advanced design patterns
+
+### 4.9 Highlights of Example Input 9: Database Operations
+- **File:** `input-9.txt`
+- **Demonstrates:**
+  - SQL-like query validation
+  - Type-safe database operations
+  - Connection pooling patterns
+  - Error handling type checking
+- **Key Test:** External system integration patterns
+
+### 4.10 Highlights of Example Input 10: Comprehensive Test Suite
+- **File:** `input-10.txt`
+- **Demonstrates:**
+  - Edge cases and corner cases
+  - All supported features combined
+  - Error recovery and multiple errors
+  - Performance with large programs
+- **Key Test:** Stress testing and edge case handling
+
+---
+
+## 5. Miscellaneous Features
+
+### 5.1 Enhanced Error Reporting
+**Description:** Our compiler provides intelligent error messages with suggestions for common mistakes.
+
+**How it works:**
+- Levenshtein distance algorithm for "did you mean?" suggestions
+- Context-aware error messages based on surrounding code
+- Multiple error detection in single pass
+
+**Example:** When typing `stirng name;`, suggests "Did you mean 'string'?"
+
+### 5.2 Interactive HTML Visualization
+**Description:** The output HTML includes interactive elements for better user experience.
+
+**Features:**
+- Syntax highlighting in error context
+- Collapsible error categories
+- Jump-to-line functionality
+- Export to PDF capability
+
+### 5.3 Import System
+**Description:** Support for modular programming through file imports.
+
+**How it works:**
+- Processes imported files recursively
+- Prevents circular dependencies
+- Maintains separate namespaces
+- Merges symbol tables appropriately
+
+### 5.4 Type Inference
+**Description:** Limited type inference for array initializers and numeric literals.
+
+**Examples:**
+- `var nums = {1, 2, 3};` infers `int[]`
+- `var pi = 3.14;` infers `float`
+
+### 5.5 Static Analysis Optimizations
+**Description:** Additional static checks beyond basic type checking.
+
+**Includes:**
+- Unreachable code detection
+- Unused variable warnings
+- Potential null pointer warnings
+- Dead code elimination suggestions
+
+---
+
+## 6. Limitations
+
+### 6.1 Language Feature Limitations
+
+1. **Generic Types:** 
+   - Partially supported for built-in collections only
+   - User-defined generics not fully implemented
+   - Type erasure model used internally
+
+2. **Multiple Inheritance:**
+   - Only single class inheritance supported
+   - Interface multiple inheritance not implemented
+   - Diamond problem avoidance not needed
+
+3. **Lambda Expressions:**
+   - Basic lambda syntax recognized
+   - Type inference for lambdas incomplete
+   - Closure capture not validated
+
+### 6.2 Type System Limitations
+
+1. **Type Casting:**
+   - Explicit casts not fully validated at compile time
+   - Runtime type checking not simulated
+   - Unsafe cast warnings not generated
+
+2. **Null Safety:**
+   - No nullable type annotations
+   - Null pointer detection is best-effort
+   - Optional types not supported
+
+3. **Variance:**
+   - Covariance/contravariance not implemented
+   - Array covariance issues not detected
+   - Generic variance not supported
+
+### 6.3 Performance Limitations
+
+1. **Large Files:**
+   - Files over 10,000 lines may cause slowdowns
+   - Memory usage grows linearly with file size
+   - Optimization for large codebases needed
+
+2. **Complex Inheritance:**
+   - Deep inheritance hierarchies (>10 levels) may cause stack overflow
+   - Multiple interface implementation performance not optimized
+
+### 6.4 Error Recovery Limitations
+
+1. **Syntax Errors:**
+   - Type checking aborted on syntax errors
+   - No partial type checking of valid sections
+   - Recovery could be improved
+
+2. **Cascading Errors:**
+   - One error may trigger multiple false positives
+   - Error suppression heuristics could be enhanced
+
+### 6.5 Known Issues
+
+1. **Switch Statements:**
+   - Fall-through not properly detected
+   - Exhaustiveness checking incomplete
+   - String switches have limitations
+
+2. **Array Bounds:**
+   - Static bounds checking is conservative
+   - Dynamic array sizing not tracked
+   - Multi-dimensional array checking limited
+
+3. **Operator Overloading:**
+   - Not supported for user-defined types
+   - String concatenation is special-cased
+   - Numeric promotion rules simplified
+
+---
+
+## Appendix A: Running the Compiler
+
+### Command Line Usage
+```bash
+# Basic usage
+java -jar compiler.jar input.txt
+
+# With custom output
+java -jar compiler.jar input.txt output.html
+
+# Debug mode
+java -jar compiler.jar -debug input.txt
+
+# Batch processing
+java -jar compiler.jar -batch tests/*.txt
+```
+
+### Build Instructions
+1. Import project into Eclipse
+2. Run ANTLR4 on TypeChecker.g4
+3. Compile all Java sources
+4. Export as Runnable JAR with MainCompiler as entry point
+
+---
+
+## Appendix B: Grammar Summary
+
+The complete grammar specification is available in `TypeChecker.g4`. Key productions include:
+
+- **program** → importDecl* declaration* EOF
+- **classDecl** → 'class' ID ('extends' ID)? '{' classMember* '}'
+- **statement** → assignStmt | ifStmt | whileStmt | returnStmt | ...
+- **expression** → primary | unary | binary | ternary | ...
+- **type** → primitiveType | classType | arrayType
+
+For the complete grammar, refer to the ANTLR4 grammar file in the source distribution.

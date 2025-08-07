@@ -109,17 +109,16 @@ public class SymbolTable {
         if (symbol == null || symbol.getName() == null) return false;
         
         if (symbol instanceof MethodSymbol) {
-            // Handle method overloading
             MethodSymbol method = (MethodSymbol) symbol;
             
             // Check if there's already a non-method symbol with this name
             Symbol existing = symbols.get(method.getName());
             if (existing != null && !(existing instanceof MethodSymbol)) {
-                return false; // Can't overload non-methods
+                return false;
             }
             
             // Add to BOTH maps - this is the key fix!
-            symbols.put(method.getName(), method);  // Add to regular symbols
+            symbols.put(method.getName(), method);  // Add to regular symbols map
             methodOverloads.computeIfAbsent(method.getName(), k -> new ArrayList<>())
                           .add(method);
             return true;

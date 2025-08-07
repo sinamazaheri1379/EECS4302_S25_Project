@@ -1,6 +1,89 @@
 // Generated from /eecs/home/sina1707/eclipse-workspace/EECS4302_S25_Project/src/grammar/TypeChecker.g4 by ANTLR 4.13.2
-package generated;
+package antlr;
 import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
+
+import antlr.TypeCheckerParser.AndContext;
+import antlr.TypeCheckerParser.ArgListContext;
+import antlr.TypeCheckerParser.ArrayAccessContext;
+import antlr.TypeCheckerParser.ArrayInitializerContext;
+import antlr.TypeCheckerParser.ArrayLvalueContext;
+import antlr.TypeCheckerParser.AssignStmtContext;
+import antlr.TypeCheckerParser.BinaryExprContext;
+import antlr.TypeCheckerParser.BlockContext;
+import antlr.TypeCheckerParser.BlockStmtContext;
+import antlr.TypeCheckerParser.BoolLiteralContext;
+import antlr.TypeCheckerParser.BooleanLiteralContext;
+import antlr.TypeCheckerParser.BreakStmtContext;
+import antlr.TypeCheckerParser.CastExprContext;
+import antlr.TypeCheckerParser.CharLiteralContext;
+import antlr.TypeCheckerParser.ClassDeclContext;
+import antlr.TypeCheckerParser.ClassTypeContext;
+import antlr.TypeCheckerParser.CompoundAssignStmtContext;
+import antlr.TypeCheckerParser.ConstructorBodyContext;
+import antlr.TypeCheckerParser.ConstructorContext;
+import antlr.TypeCheckerParser.ConstructorDeclContext;
+import antlr.TypeCheckerParser.ContinueStmtContext;
+import antlr.TypeCheckerParser.DeclarationContext;
+import antlr.TypeCheckerParser.DoWhileStmtContext;
+import antlr.TypeCheckerParser.EmptyStmtContext;
+import antlr.TypeCheckerParser.ExprListContext;
+import antlr.TypeCheckerParser.ExprStmtContext;
+import antlr.TypeCheckerParser.FieldAccessContext;
+import antlr.TypeCheckerParser.FieldDeclContext;
+import antlr.TypeCheckerParser.FieldLvalueContext;
+import antlr.TypeCheckerParser.FloatLiteralContext;
+import antlr.TypeCheckerParser.ForEachStmtContext;
+import antlr.TypeCheckerParser.ForInitContext;
+import antlr.TypeCheckerParser.ForStmtContext;
+import antlr.TypeCheckerParser.ForUpdateContext;
+import antlr.TypeCheckerParser.FuncCallContext;
+import antlr.TypeCheckerParser.FuncDeclContext;
+import antlr.TypeCheckerParser.GlobalVarDeclContext;
+import antlr.TypeCheckerParser.IfStmtContext;
+import antlr.TypeCheckerParser.ImportDeclContext;
+import antlr.TypeCheckerParser.InitializerContext;
+import antlr.TypeCheckerParser.InstanceOfExprContext;
+import antlr.TypeCheckerParser.IntLiteralContext;
+import antlr.TypeCheckerParser.LiteralPrimaryContext;
+import antlr.TypeCheckerParser.LocalVarDeclContext;
+import antlr.TypeCheckerParser.LocalVarDeclStmtContext;
+import antlr.TypeCheckerParser.MethodCallContext;
+import antlr.TypeCheckerParser.MethodDeclContext;
+import antlr.TypeCheckerParser.NewArrayExprContext;
+import antlr.TypeCheckerParser.NewArrayWithInitContext;
+import antlr.TypeCheckerParser.NewExprContext;
+import antlr.TypeCheckerParser.NullLiteralContext;
+import antlr.TypeCheckerParser.OrContext;
+import antlr.TypeCheckerParser.ParamContext;
+import antlr.TypeCheckerParser.ParamListContext;
+import antlr.TypeCheckerParser.ParenExprContext;
+import antlr.TypeCheckerParser.PostIncDecContext;
+import antlr.TypeCheckerParser.PrimaryExprContext;
+import antlr.TypeCheckerParser.PrimitiveTypeContext;
+import antlr.TypeCheckerParser.ProgramContext;
+import antlr.TypeCheckerParser.ReturnStmtContext;
+import antlr.TypeCheckerParser.StatementContext;
+import antlr.TypeCheckerParser.StaticFieldAccessContext;
+import antlr.TypeCheckerParser.StaticMethodCallContext;
+import antlr.TypeCheckerParser.StringLiteralContext;
+import antlr.TypeCheckerParser.SuperConstructorCallContext;
+import antlr.TypeCheckerParser.SuperExprContext;
+import antlr.TypeCheckerParser.SuperLvalueContext;
+import antlr.TypeCheckerParser.SwitchCaseContext;
+import antlr.TypeCheckerParser.SwitchLabelContext;
+import antlr.TypeCheckerParser.SwitchStmtContext;
+import antlr.TypeCheckerParser.TernaryContext;
+import antlr.TypeCheckerParser.ThisConstructorCallContext;
+import antlr.TypeCheckerParser.ThisExprContext;
+import antlr.TypeCheckerParser.ThisLvalueContext;
+import antlr.TypeCheckerParser.TypeContext;
+import antlr.TypeCheckerParser.UnaryExprContext;
+import antlr.TypeCheckerParser.VarDeclContext;
+import antlr.TypeCheckerParser.VarDeclaratorContext;
+import antlr.TypeCheckerParser.VarLvalueContext;
+import antlr.TypeCheckerParser.VarRefContext;
+import antlr.TypeCheckerParser.VisibilityContext;
+import antlr.TypeCheckerParser.WhileStmtContext;
 
 /**
  * This class provides an empty implementation of {@link TypeCheckerVisitor},
@@ -75,6 +158,27 @@ public class TypeCheckerBaseVisitor<T> extends AbstractParseTreeVisitor<T> imple
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public T visitConstructorDecl(TypeCheckerParser.ConstructorDeclContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitConstructorBody(TypeCheckerParser.ConstructorBodyContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitSuperConstructorCall(TypeCheckerParser.SuperConstructorCallContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitThisConstructorCall(TypeCheckerParser.ThisConstructorCallContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *

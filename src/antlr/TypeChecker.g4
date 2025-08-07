@@ -5,7 +5,7 @@ grammar TypeChecker;
 // Program structure
 program : importDecl* declaration* EOF ;
 
-// Simple imports for including other files
+
 importDecl : IMPORT STRING_LITERAL ';' ;
 
 declaration
@@ -14,7 +14,7 @@ declaration
     | globalVarDecl
     ;
 
-// Classes with single inheritance
+
 classDecl
     : CLASS ID (EXTENDS ID)? 
       '{' classMember* '}'
@@ -29,19 +29,27 @@ classMember
 visibility
     : PUBLIC
     | PRIVATE
-    | PROTECTED    // Add PROTECTED support
+    | PROTECTED 
     ;
 
 constructorDecl
-    : visibility? ID '(' paramList? ')' block
+    : visibility? ID '(' paramList? ')' constructorBody
+    ;
+    
+constructorBody
+    : '{' constructorCall? statement* '}'
     ;
 
-// Global variables
+constructorCall
+    : SUPER '(' argList? ')' ';'     # SuperConstructorCall
+    | THIS '(' argList? ')' ';'      # ThisConstructorCall
+    ;
+ 
 globalVarDecl
     : STATIC? FINAL? varDecl
     ;
 
-// Variable declarations with multiple declarators
+
 varDecl
     : FINAL? type varDeclarator (',' varDeclarator)* ';'
     ;
@@ -59,9 +67,9 @@ arrayInitializer
     : '{' (initializer (',' initializer)*)? '}'
     ;
 
-// Functions with return types
+
 funcDecl
-    : type ID '(' paramList? ')' ('[' ']')* block    // Allow array return types
+    : type ID '(' paramList? ')' ('[' ']')* block   
     | VOID ID '(' paramList? ')' block
     ;
 
@@ -73,7 +81,7 @@ param
     : FINAL? type ID ('[' ']')*
     ;
 
-// Types - with array dimensions
+
 type
     : primitiveType ('[' ']')*
     | classType ('[' ']')*
@@ -91,7 +99,7 @@ classType
     : ID
     ;
 
-// Statements
+
 block
     : '{' statement* '}'
     ;
@@ -100,7 +108,7 @@ statement
     : localVarDeclStmt
     | assignStmt
     | compoundAssignStmt
-    | exprStmt
+    | exprStmt    
     | ifStmt
     | whileStmt
     | forStmt
@@ -114,6 +122,7 @@ statement
     | emptyStmt
     ;
 
+ 
 localVarDeclStmt : localVarDecl ;
 
 localVarDecl : FINAL? varDecl ;

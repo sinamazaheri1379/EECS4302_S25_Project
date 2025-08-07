@@ -1,5 +1,5 @@
 // Generated from /eecs/home/sina1707/eclipse-workspace/EECS4302_S25_Project/src/grammar/TypeChecker.g4 by ANTLR 4.13.2
-package generated;
+package antlr;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 
 /**
@@ -67,6 +67,26 @@ public interface TypeCheckerVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitConstructorDecl(TypeCheckerParser.ConstructorDeclContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link TypeCheckerParser#constructorBody}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitConstructorBody(TypeCheckerParser.ConstructorBodyContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code SuperConstructorCall}
+	 * labeled alternative in {@link TypeCheckerParser#constructorCall}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSuperConstructorCall(TypeCheckerParser.SuperConstructorCallContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code ThisConstructorCall}
+	 * labeled alternative in {@link TypeCheckerParser#constructorCall}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitThisConstructorCall(TypeCheckerParser.ThisConstructorCallContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link TypeCheckerParser#globalVarDecl}.
 	 * @param ctx the parse tree

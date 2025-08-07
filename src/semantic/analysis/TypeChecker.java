@@ -1,7 +1,5 @@
 package semantic.analysis;
 
-import generated.*;
-import generated.TypeCheckerParser.*;
 import semantic.SemanticError;
 import semantic.Symbol;
 import semantic.SymbolTable;
@@ -20,6 +18,11 @@ import semantic.types.Type;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+
+import antlr.TypeCheckerBaseVisitor;
+import antlr.TypeCheckerParser;
+import antlr.TypeCheckerParser.*;
+
 import java.util.*;
 
 /**
@@ -33,6 +36,8 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     private ClassSymbol currentClass;
     private MethodSymbol currentMethod;
     private FunctionSymbol currentFunction;
+    private boolean inConstructor = false;
+    private boolean hasConstructorCall = false;
     private boolean inStaticContext = false;
     private Stack<Boolean> loopStack = new Stack<>();
     private Set<VariableSymbol> initializedVars = new HashSet<>();
@@ -628,75 +633,252 @@ public class TypeChecker extends TypeCheckerBaseVisitor<Type> {
     }
     
     @Override
-    public Type visitConstructorDecl(ConstructorDeclContext ctx) {
-        if (ctx == null || ctx.ID() == null || currentClass == null) return null;
-        
+    public Type visitConstructorDecl(TypeCheckerParser.ConstructorDeclContext ctx) {
         String constructorName = ctx.ID().getText();
         
         // Verify constructor name matches class name
         if (!constructorName.equals(currentClass.getName())) {
             addError(ctx.ID().getSymbol(),
-                "Constructor name '" + constructorName + "' must match class name '" + 
-                currentClass.getName() + "'",
-                SemanticError.ErrorType.INVALID_CONSTRUCTOR);
+                "Constructor name must match class name",
+                SemanticError.ErrorType.CONSTRUCTOR_ERROR);
+            return ErrorType.getInstance();
         }
         
-        // Find matching constructor
-        ConstructorSymbol constructor = null;
-        List<Type> paramTypes = new ArrayList<>();
+        // Set constructor context
+        boolean wasInConstructor = inConstructor;
+        boolean hadConstructorCall = hasConstructorCall;
+        inConstructor = true;
+        hasConstructorCall = false;
         
-        // Get parameter types from context
-        if (ctx.paramList() != null) {
-            for (var param : ctx.paramList().param()) {
-                Type paramType = getTypeFromParamContext(param);
-                if (paramType != null) {
-                    paramTypes.add(paramType);
+        // Get constructor scope
+        SymbolTable constructorScope = nodeScopes.get(ctx);
+        if (constructorScope != null) {
+            SymbolTable savedScope = currentScope;
+            currentScope = constructorScope;
+            
+            // Visit constructor body
+            visit(ctx.constructorBody());
+            
+            currentScope = savedScope;
+        }
+        
+        // Check for implicit super() call
+        if (!hasConstructorCall && currentClass.getSuperClass() != null) {
+            ClassSymbol superClass = currentClass.getSuperClass();
+            List<Type> emptyArgs = new ArrayList<>();
+            ConstructorSymbol defaultSuper = superClass.findConstructor(emptyArgs);
+            
+            if (defaultSuper == null) {
+                addError(ctx.ID().getSymbol(),
+                    "Implicit super() call requires no-argument constructor in superclass",
+                    SemanticError.ErrorType.CONSTRUCTOR_ERROR);
+            }
+        }
+        
+        // Restore context
+        inConstructor = wasInConstructor;
+        hasConstructorCall = hadConstructorCall;
+        
+        return null;
+    }
+    
+    @Override
+    public Type visitConstructorBody(TypeCheckerParser.ConstructorBodyContext ctx) {
+        // Visit constructor call if present
+        if (ctx.constructorCall() != null) {
+            visit(ctx.constructorCall());
+        }
+        
+        // Visit all statements
+        for (var stmt : ctx.statement()) {
+            visit(stmt);
+        }
+        
+        return null;
+    }
+    
+    @Override
+    public Type visitSuperConstructorCall(TypeCheckerParser.SuperConstructorCallContext ctx) {
+        hasConstructorCall = true;
+        
+        if (!inConstructor) {
+            addError(ctx.SUPER().getSymbol(),
+                "super() can only be called from a constructor",
+                SemanticError.ErrorType.INVALID_SUPER);
+            return ErrorType.getInstance();
+        }
+        
+        if (currentClass == null || currentClass.getSuperClass() == null) {
+            addError(ctx.SUPER().getSymbol(),
+                "No superclass to call super() on",
+                SemanticError.ErrorType.INVALID_SUPER);
+            return ErrorType.getInstance();
+        }
+        
+        // Get argument types
+        List<Type> argTypes = new ArrayList<>();
+        if (ctx.argList() != null) {
+            for (var expr : ctx.argList().expr()) {
+                Type argType = visit(expr);
+                if (argType != null && argType != ErrorType.getInstance()) {
+                    argTypes.add(argType);
                 }
             }
         }
         
-        // Find constructor with matching parameters
-        for (ConstructorSymbol c : currentClass.getConstructors()) {
-            if (matchesParameterTypes(c.getParameters(), paramTypes)) {
-                constructor = c;
-                break;
+        // Find matching constructor in superclass
+        ClassSymbol superClass = currentClass.getSuperClass();
+        ConstructorSymbol constructor = superClass.findConstructor(argTypes);
+        
+        if (constructor == null) {
+            addError(ctx.SUPER().getSymbol(),
+                String.format("No matching constructor in superclass %s for arguments %s",
+                    superClass.getName(), formatTypeList(argTypes)),
+                SemanticError.ErrorType.UNDEFINED_CONSTRUCTOR);
+            return ErrorType.getInstance();
+        }
+        
+        // Check visibility
+        if (!isAccessible(constructor)) {
+            addError(ctx.SUPER().getSymbol(),
+                "Constructor is not accessible",
+                SemanticError.ErrorType.ACCESS_VIOLATION);
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Check if a symbol is accessible from the current context.
+     */
+    private boolean isAccessible(Symbol symbol) {
+        if (symbol == null) return false;
+        
+        // Get visibility
+        VariableSymbol.Visibility visibility = null;
+        
+        if (symbol instanceof VariableSymbol) {
+            visibility = ((VariableSymbol) symbol).getVisibility();
+        } else if (symbol instanceof MethodSymbol) {
+            visibility = ((MethodSymbol) symbol).getVisibility();
+        } else if (symbol instanceof ConstructorSymbol) {
+            visibility = ((ConstructorSymbol) symbol).getVisibility();
+        }
+        
+        // Default to public if no visibility
+        if (visibility == null) {
+            visibility = VariableSymbol.Visibility.PUBLIC;
+        }
+        
+        // Public is always accessible
+        if (visibility == VariableSymbol.Visibility.PUBLIC) {
+            return true;
+        }
+        
+        // Get the owner class of the symbol
+        ClassSymbol ownerClass = null;
+        if (symbol instanceof MethodSymbol) {
+            ownerClass = ((MethodSymbol) symbol).getOwnerClass();
+        } else if (symbol instanceof ConstructorSymbol) {
+            ownerClass = ((ConstructorSymbol) symbol).getOwnerClass();
+        } else if (symbol instanceof VariableSymbol) {
+            // For fields, need to find owner through scope
+            // This is a simplification - you might need more logic here
+            ownerClass = findOwnerClass(symbol);
+        }
+        
+        // Private: only accessible within the same class
+        if (visibility == VariableSymbol.Visibility.PRIVATE) {
+            return currentClass != null && currentClass == ownerClass;
+        }
+        
+        // Protected: accessible within same class or subclasses
+        if (visibility == VariableSymbol.Visibility.PROTECTED) {
+            if (currentClass == null) return false;
+            if (currentClass == ownerClass) return true;
+            
+            // Check if current class is a subclass
+            return isSubclassOf(currentClass, ownerClass);
+        }
+        
+        // Default to not accessible
+        return false;
+    }
+
+    /**
+     * Helper method to check if one class is a subclass of another.
+     */
+    private boolean isSubclassOf(ClassSymbol subclass, ClassSymbol superclass) {
+        if (subclass == null || superclass == null) return false;
+        
+        ClassSymbol current = subclass.getSuperClass();
+        while (current != null) {
+            if (current == superclass) {
+                return true;
+            }
+            current = current.getSuperClass();
+        }
+        
+        return false;
+    }
+
+    /**
+     * Helper method to find the owner class of a field.
+     */
+    private ClassSymbol findOwnerClass(Symbol symbol) {
+        // This is a simplified version - you might need to traverse scopes
+        // or store owner information in the symbol
+        return currentClass;  // Simplified assumption
+    }
+
+    @Override
+    public Type visitThisConstructorCall(TypeCheckerParser.ThisConstructorCallContext ctx) {
+        hasConstructorCall = true;
+        
+        if (!inConstructor) {
+            addError(ctx.THIS().getSymbol(),
+                "this() can only be called from a constructor",
+                SemanticError.ErrorType.INVALID_THIS);
+            return ErrorType.getInstance();
+        }
+        
+        // Get argument types
+        List<Type> argTypes = new ArrayList<>();
+        if (ctx.argList() != null) {
+            for (var expr : ctx.argList().expr()) {
+                Type argType = visit(expr);
+                if (argType != null && argType != ErrorType.getInstance()) {
+                    argTypes.add(argType);
+                }
             }
         }
         
+        // Find matching constructor in current class
+        ConstructorSymbol constructor = currentClass.findConstructor(argTypes);
+        
         if (constructor == null) {
-            addError(ctx.ID().getSymbol(),
-                "Constructor not found in symbol table",
-                SemanticError.ErrorType.INTERNAL_ERROR);
-            return null;
+            addError(ctx.THIS().getSymbol(),
+                String.format("No matching constructor in class %s for arguments %s",
+                    currentClass.getName(), formatTypeList(argTypes)),
+                SemanticError.ErrorType.UNDEFINED_CONSTRUCTOR);
+            return ErrorType.getInstance();
         }
         
-        // Set current method context
-        MethodSymbol previousMethod = currentMethod;
-        currentMethod = null; // Constructors are not methods
-        SymbolTable previousScope = currentScope;
-        
-        // Create constructor scope
-        currentScope = SymbolTable.createConstructorScope(constructorName, currentScope);
-        
-        // Add parameters to scope
-        for (VariableSymbol param : constructor.getParameters()) {
-            currentScope.define(param);
-        }
-        
-        // Special handling for constructor returns
-        ReturnTracker tracker = new ConstructorReturnTracker(this);
-        returnTrackers.push(tracker);
-        
-        // Visit block
-        visit(ctx.block());
-        
-        // Clean up
-        returnTrackers.pop();
-        currentMethod = previousMethod;
-        currentScope = previousScope;
-        
-        return constructor.getType();
+        return null;
     }
+    
+    // Helper method to format type list for error messages
+    private String formatTypeList(List<Type> types) {
+        if (types.isEmpty()) return "()";
+        StringBuilder sb = new StringBuilder("(");
+        for (int i = 0; i < types.size(); i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(types.get(i).getName());
+        }
+        sb.append(")");
+        return sb.toString();
+    }
+
     
  // Function/Method visitors
     @Override
